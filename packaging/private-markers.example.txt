@@ -1,0 +1,5 @@
+# Copy this file to private-markers.local.txt (which is gitignored).
+# Put one organization, customer, project, room, or internal path marker per line.
+# Do not commit the populated local file.
+EXAMPLE_CUSTOMER_NAME
+EXAMPLE_INTERNAL_PROJECT_CODE

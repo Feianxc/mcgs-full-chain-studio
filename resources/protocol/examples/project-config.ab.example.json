@@ -1,0 +1,78 @@
+{
+  "project_name": "示例项目-ab-screen-split",
+  "project_code": "DEMO-MCGS-AB-001",
+  "protocol_title": "动环通讯协议-ab",
+  "generation_basis": "max_column",
+  "export_family": "ab_screen_split",
+  "communication": {
+    "protocol": "Modbus RTU",
+    "baud_rate": 9600,
+    "parity": "N",
+    "data_bits": 8,
+    "stop_bits": 1,
+    "default_screen_address": 1
+  },
+  "topology": {
+    "screen_topology_mode": "dual_screens_ab_separated",
+    "route_mode": "AB_dual_route",
+    "upload_port_profile": "A4B4",
+    "canonical_column_id": "J01",
+    "columns_per_screen": 2,
+    "screen_count": 2,
+    "screen_route_binding": "A_screen_and_B_screen_separate"
+  },
+  "devices": {
+    "start_boxes": {
+      "A": {
+        "count": 1,
+        "instance_names": [
+          "S1"
+        ]
+      },
+      "B": {
+        "count": 1,
+        "instance_names": [
+          "S2"
+        ]
+      }
+    },
+    "plug_boxes": {
+      "A": {
+        "board_number_start": 101,
+        "sequence": [
+          {
+            "type_code": "3P*1",
+            "count": 5,
+            "layout_pattern": "1"
+          }
+        ]
+      },
+      "B": {
+        "board_number_start": 201,
+        "sequence": [
+          {
+            "type_code": "3P*1",
+            "count": 5,
+            "layout_pattern": "1"
+          }
+        ]
+      }
+    },
+    "repeater_units": {
+      "enabled": false,
+      "A_count": 0,
+      "B_count": 0
+    },
+    "single_cabinet_aggregation": {
+      "enabled": false,
+      "cabinet_count": 0
+    }
+  },
+  "profiles": {
+    "address_profile_id": "ab_screen_main1000_alarm3000_16bit",
+    "device_library_id": "device-library-v2-board-seed",
+    "export_profile_id": "ab_screen_split_default",
+    "start_box_template_id": "start_box_standard_32row_outlet_temp",
+    "plug_branch_template_id": "plug_branch_compact_21row"
+  }
+}

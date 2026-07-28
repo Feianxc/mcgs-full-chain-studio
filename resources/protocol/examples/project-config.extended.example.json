@@ -1,0 +1,81 @@
+{
+  "project_name": "示例项目-extended-split",
+  "project_code": "DEMO-MCGS-EXT-001",
+  "protocol_title": "动环通讯协议-extended",
+  "generation_basis": "max_column",
+  "export_family": "extended_split",
+  "communication": {
+    "protocol": "Modbus RTU",
+    "baud_rate": 9600,
+    "parity": "N",
+    "data_bits": 8,
+    "stop_bits": 1,
+    "default_screen_address": 1
+  },
+  "topology": {
+    "screen_topology_mode": "single_screen_half_channel",
+    "route_mode": "AB_dual_route",
+    "upload_port_profile": "A4B4",
+    "canonical_column_id": "J01",
+    "columns_per_screen": 1,
+    "screen_count": 1,
+    "screen_route_binding": "both_routes_in_one_screen"
+  },
+  "devices": {
+    "start_boxes": {
+      "A": {
+        "count": 1,
+        "instance_names": [
+          "S1"
+        ]
+      },
+      "B": {
+        "count": 1,
+        "instance_names": [
+          "S2"
+        ]
+      }
+    },
+    "plug_boxes": {
+      "A": {
+        "board_number_start": 101,
+        "sequence": [
+          {
+            "type_code": "3P*4",
+            "count": 10,
+            "layout_pattern": "2+2"
+          }
+        ]
+      },
+      "B": {
+        "board_number_start": 201,
+        "sequence": [
+          {
+            "type_code": "3P*4",
+            "count": 10,
+            "layout_pattern": "2+2"
+          }
+        ]
+      }
+    },
+    "repeater_units": {
+      "enabled": true,
+      "alias": "中继单元",
+      "A_count": 8,
+      "B_count": 8
+    },
+    "single_cabinet_aggregation": {
+      "enabled": true,
+      "cabinet_count": 38
+    }
+  },
+  "profiles": {
+    "address_profile_id": "split_main1000_plug2000_cabinet8200_repeater9000_alarm9200_16bit",
+    "device_library_id": "device-library-v2-board-seed",
+    "export_profile_id": "extended_split_default",
+    "start_box_template_id": "start_box_extended_load_unbalance_reactive",
+    "plug_branch_template_id": "plug_branch_extended_load_reactive",
+    "repeater_template_id": "repeater_abcn_temp_4row",
+    "single_cabinet_template_id": "single_cabinet_liquidcool_ia_pa_ea_ka"
+  }
+}

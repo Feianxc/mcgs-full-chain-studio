@@ -1,0 +1,115 @@
+{
+  "id": "address-profiles-v1-seed",
+  "version": "0.1.0",
+  "profiles": [
+    {
+      "id": "classic_main1000_alarm6000_16bit",
+      "family": "classic_combined",
+      "main_base": 1000,
+      "alarm_base": 6000,
+      "alarm_word_mode": "16bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003",
+        "synthetic_reference_004",
+        "synthetic_reference_005",
+        "synthetic_reference_006",
+        "synthetic_reference_007"
+      ]
+    },
+    {
+      "id": "classic_with_repeater5500_alarm6000_16bit",
+      "family": "classic_combined",
+      "main_base": 1000,
+      "repeater_base": 5500,
+      "alarm_base": 6000,
+      "alarm_word_mode": "16bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003",
+        "synthetic_reference_004",
+        "synthetic_reference_005"
+      ]
+    },
+    {
+      "id": "classic_with_repeater5500_cabinet7000_alarm6000_16bit",
+      "family": "classic_combined",
+      "main_base": 1000,
+      "repeater_base": 5500,
+      "cabinet_base": 7000,
+      "alarm_base": 6000,
+      "alarm_word_mode": "16bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003"
+      ]
+    },
+    {
+      "id": "classic_main1000_alarm5000_32bit",
+      "family": "classic_combined",
+      "main_base": 1000,
+      "alarm_base": 5000,
+      "alarm_word_mode": "32bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002"
+      ]
+    },
+    {
+      "id": "ab_screen_main1000_alarm3000_16bit",
+      "family": "ab_screen_split",
+      "main_base": 1000,
+      "alarm_base": 3000,
+      "alarm_word_mode": "16bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "classic_main1000_alarm4000_32bit",
+      "family": "classic_combined",
+      "main_base": 1000,
+      "alarm_base": 4000,
+      "alarm_word_mode": "32bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "classic_liquidcool_main1000_repeater5000_cabinet7000_alarm6000_32bit",
+      "family": "classic_combined",
+      "main_base": 1000,
+      "repeater_base": 5000,
+      "cabinet_base": 7000,
+      "alarm_base": 6000,
+      "alarm_word_mode": "32bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "split_main1000_plug2000_cabinet8200_repeater9000_alarm9200_16bit",
+      "family": "extended_split",
+      "main_base": 1000,
+      "plug_base": 2000,
+      "cabinet_base": 8200,
+      "repeater_base": 9000,
+      "alarm_base": 9200,
+      "alarm_word_mode": "16bit",
+      "register_step": 2,
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    }
+  ]
+}

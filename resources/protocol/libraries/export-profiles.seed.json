@@ -1,0 +1,222 @@
+{
+  "id": "export-profiles-v1-seed",
+  "version": "0.1.0",
+  "profiles": [
+    {
+      "id": "classic_combined_default",
+      "family": "classic_combined",
+      "render_variant_id": "classic_standard",
+      "is_family_baseline": true,
+      "baseline_profile_bundle": {
+        "address_profile_id": "classic_with_repeater5500_alarm6000_16bit",
+        "start_box_template_id": "start_box_standard_36row_thd_energy",
+        "plug_branch_template_id": "plug_branch_standard_29row_connector_temp",
+        "repeater_template_id": "repeater_abcn_temp_4row",
+        "single_cabinet_template_id": "single_cabinet_standard_ia_pa_ea"
+      },
+      "patch_tags": [
+        "merge_start_and_plug",
+        "include_repeater_sheet"
+      ],
+      "active_zones": [
+        "intro_block",
+        "combined_main_sheet",
+        "repeater_sheet",
+        "alarm_sheet"
+      ],
+      "display_label": "标准版（含中继页）",
+      "description": "适合一屏一列 / 半列以及带中继的 classic 项目",
+      "sheet_order": [
+        "始端箱和插接箱",
+        "中继器",
+        "报警状态"
+      ],
+      "include_summary_sheet": false,
+      "merge_start_and_plug": true,
+      "split_ab_screens": false,
+      "include_single_cabinet_sheet": false
+    },
+    {
+      "id": "classic_combined_cabinet_default",
+      "family": "classic_combined",
+      "render_variant_id": "classic_standard",
+      "baseline_profile_bundle": {
+        "address_profile_id": "classic_with_repeater5500_cabinet7000_alarm6000_16bit",
+        "start_box_template_id": "start_box_standard_36row_thd_energy",
+        "plug_branch_template_id": "plug_branch_standard_29row_connector_temp",
+        "repeater_template_id": "repeater_abcn_temp_4row",
+        "single_cabinet_template_id": "single_cabinet_standard_ia_pa_ea"
+      },
+      "patch_tags": [
+        "merge_start_and_plug",
+        "include_repeater_sheet",
+        "include_single_cabinet_sheet"
+      ],
+      "active_zones": [
+        "intro_block",
+        "combined_main_sheet",
+        "repeater_sheet",
+        "alarm_sheet",
+        "single_cabinet_sheet"
+      ],
+      "display_label": "标准版（含中继页 / 单机柜页）",
+      "description": "适合一屏一列、带中继与单机柜数据的 classic 项目",
+      "sheet_order": [
+        "始端箱和插接箱",
+        "中继器",
+        "报警状态",
+        "单机柜数据"
+      ],
+      "include_summary_sheet": false,
+      "merge_start_and_plug": true,
+      "split_ab_screens": false,
+      "include_single_cabinet_sheet": true
+    },
+    {
+      "id": "classic_combined_two_columns_default",
+      "family": "classic_combined",
+      "render_variant_id": "classic_two_columns",
+      "baseline_profile_bundle": {
+        "address_profile_id": "classic_main1000_alarm6000_16bit",
+        "start_box_template_id": "start_box_compact_31row_inlet_temp",
+        "plug_branch_template_id": "plug_branch_compact_21row",
+        "single_cabinet_template_id": "single_cabinet_standard_ia_pa_ea"
+      },
+      "patch_tags": [
+        "merge_start_and_plug",
+        "hide_repeater_sheet"
+      ],
+      "active_zones": [
+        "intro_block",
+        "combined_main_sheet",
+        "two_column_header",
+        "alarm_sheet"
+      ],
+      "display_label": "单屏双列版",
+      "description": "适合单屏双列、A3B3 上传且不需要中继页的 classic 项目",
+      "sheet_order": [
+        "始端箱和插接箱",
+        "报警状态"
+      ],
+      "include_summary_sheet": false,
+      "merge_start_and_plug": true,
+      "split_ab_screens": false,
+      "include_single_cabinet_sheet": false,
+      "include_repeater_sheet": false,
+      "subtype": "single_screen_two_columns",
+      "topology_mode": "single_screen_two_columns"
+    },
+    {
+      "id": "extended_split_default",
+      "family": "extended_split",
+      "render_variant_id": "extended_standard",
+      "is_family_baseline": true,
+      "baseline_profile_bundle": {
+        "address_profile_id": "split_main1000_plug2000_cabinet8200_repeater9000_alarm9200_16bit",
+        "start_box_template_id": "start_box_extended_load_unbalance_reactive",
+        "plug_branch_template_id": "plug_branch_extended_load_reactive",
+        "repeater_template_id": "repeater_abcn_temp_4row",
+        "single_cabinet_template_id": "single_cabinet_liquidcool_ia_pa_ea_ka"
+      },
+      "patch_tags": [
+        "separate_start_and_plug",
+        "include_repeater_sheet",
+        "include_single_cabinet_sheet"
+      ],
+      "active_zones": [
+        "split_start_sheet",
+        "split_plug_sheet",
+        "single_cabinet_sheet",
+        "repeater_sheet",
+        "alarm_sheet"
+      ],
+      "display_label": "扩展分页版",
+      "description": "始端箱 / 插接箱 / 单机柜 / 中继分开输出",
+      "sheet_order": [
+        "始端箱",
+        "插接箱",
+        "单机柜数据",
+        "中继单元",
+        "报警状态"
+      ],
+      "include_summary_sheet": false,
+      "merge_start_and_plug": false,
+      "split_ab_screens": false,
+      "include_single_cabinet_sheet": true
+    },
+    {
+      "id": "ab_screen_split_default",
+      "family": "ab_screen_split",
+      "render_variant_id": "ab_screen_standard",
+      "is_family_baseline": true,
+      "baseline_profile_bundle": {
+        "address_profile_id": "ab_screen_main1000_alarm3000_16bit",
+        "start_box_template_id": "start_box_standard_32row_outlet_temp",
+        "plug_branch_template_id": "plug_branch_compact_21row",
+        "single_cabinet_template_id": "single_cabinet_standard_ia_pa_ea"
+      },
+      "patch_tags": [
+        "split_ab_screens"
+      ],
+      "active_zones": [
+        "route_a_data",
+        "route_a_alarm",
+        "route_b_data",
+        "route_b_alarm"
+      ],
+      "display_label": "A/B 分屏版",
+      "description": "A 路与 B 路独立屏分页输出",
+      "sheet_order": [
+        "A路屏数据",
+        "A路屏报警",
+        "B路屏数据",
+        "B路屏报警"
+      ],
+      "include_summary_sheet": false,
+      "merge_start_and_plug": false,
+      "split_ab_screens": true,
+      "include_single_cabinet_sheet": false
+    },
+    {
+      "id": "classic_combined_liquidcool_default",
+      "family": "classic_combined",
+      "render_variant_id": "classic_liquidcool",
+      "baseline_profile_bundle": {
+        "address_profile_id": "classic_liquidcool_main1000_repeater5000_cabinet7000_alarm6000_32bit",
+        "start_box_template_id": "start_box_standard_36row_thd_energy_32bit_state",
+        "plug_branch_template_id": "plug_branch_standard_30row_full_connector",
+        "repeater_template_id": "repeater_abcn_temp_4row",
+        "single_cabinet_template_id": "single_cabinet_liquidcool_ia_pa_ea_ka"
+      },
+      "patch_tags": [
+        "merge_start_and_plug",
+        "include_repeater_sheet",
+        "include_single_cabinet_sheet",
+        "hybrid_threshold_alarm"
+      ],
+      "active_zones": [
+        "intro_block",
+        "combined_main_sheet",
+        "repeater_sheet",
+        "alarm_sheet",
+        "single_cabinet_sheet",
+        "liquidcool_threshold_block",
+        "wiring_layout_aux_columns"
+      ],
+      "display_label": "液冷混合版",
+      "description": "包含中继、报警与单机柜页的液冷 classic 项目",
+      "sheet_order": [
+        "始端箱和插接箱",
+        "中继器",
+        "报警状态",
+        "单机柜数据"
+      ],
+      "include_summary_sheet": false,
+      "merge_start_and_plug": true,
+      "split_ab_screens": false,
+      "include_single_cabinet_sheet": true,
+      "subtype": "liquidcool_hybrid",
+      "alarm_mode": "hybrid_threshold_and_state"
+    }
+  ]
+}

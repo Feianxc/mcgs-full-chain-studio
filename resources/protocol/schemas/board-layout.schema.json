@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcgs/board-layout.schema.json",
+  "title": "MCGS Board Layout Catalog",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "modeling_principle",
+    "board_templates",
+    "plug_box_physical_types"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "modeling_principle": {
+      "const": "board_is_minimal_protocol_unit"
+    },
+    "type_aliases": {
+      "type": "object"
+    },
+    "board_numbering_rules": {
+      "type": "object"
+    },
+    "board_templates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "layout_token",
+          "phase_mode",
+          "branch_capacity",
+          "branch_reference_mode"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "layout_token": {
+            "type": "string"
+          },
+          "phase_mode": {
+            "enum": [
+              "three_phase",
+              "single_phase_triplet"
+            ]
+          },
+          "branch_capacity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "branch_reference_mode": {
+            "type": "string"
+          },
+          "secondary_branch_suffix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "secondary_branch_suffix_scope": {
+            "type": "string"
+          },
+          "output_phase_sequence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "plug_box_physical_types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type_code",
+          "phase_mode",
+          "branch_count",
+          "default_layout_pattern",
+          "layout_pattern_required",
+          "allowed_layout_patterns"
+        ],
+        "properties": {
+          "type_code": {
+            "type": "string"
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "phase_mode": {
+            "enum": [
+              "three_phase",
+              "single_phase_triplet"
+            ]
+          },
+          "branch_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "default_layout_pattern": {
+            "type": "string"
+          },
+          "layout_pattern_required": {
+            "type": "boolean"
+          },
+          "allowed_layout_patterns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/layoutPattern"
+            }
+          },
+          "authoritative_source": {
+            "type": "string"
+          },
+          "historical_observed": {
+            "type": "boolean"
+          },
+          "historical_evidence": {
+            "type": "array"
+          },
+          "conservative_default_branch_template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "secondary_branch_suffix_variants": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "monitor_module_wording_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "$defs": {
+    "boardTemplate": {
+      "type": "object",
+      "required": [
+        "id",
+        "layout_token",
+        "phase_mode",
+        "branch_capacity",
+        "branch_reference_mode"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "layout_token": {
+          "type": "string"
+        },
+        "phase_mode": {
+          "enum": [
+            "three_phase",
+            "single_phase_triplet"
+          ]
+        },
+        "branch_capacity": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "branch_reference_mode": {
+          "type": "string"
+        },
+        "secondary_branch_suffix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "secondary_branch_suffix_scope": {
+          "type": "string"
+        },
+        "output_phase_sequence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "layoutPattern": {
+      "type": "object",
+      "required": [
+        "pattern",
+        "tokens",
+        "board_count",
+        "branch_count",
+        "board_template_ids"
+      ],
+      "properties": {
+        "pattern": {
+          "type": "string"
+        },
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "board_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "branch_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "board_template_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "plugBoxPhysicalType": {
+      "type": "object",
+      "required": [
+        "type_code",
+        "phase_mode",
+        "branch_count",
+        "default_layout_pattern",
+        "layout_pattern_required",
+        "allowed_layout_patterns"
+      ],
+      "properties": {
+        "type_code": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "phase_mode": {
+          "enum": [
+            "three_phase",
+            "single_phase_triplet"
+          ]
+        },
+        "branch_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "default_layout_pattern": {
+          "type": "string"
+        },
+        "layout_pattern_required": {
+          "type": "boolean"
+        },
+        "allowed_layout_patterns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layoutPattern"
+          }
+        },
+        "authoritative_source": {
+          "type": "string"
+        },
+        "historical_observed": {
+          "type": "boolean"
+        },
+        "historical_evidence": {
+          "type": "array"
+        },
+        "conservative_default_branch_template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

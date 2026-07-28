@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcgs/address-profile.schema.json",
+  "title": "MCGS Address Profiles",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "profiles"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "family",
+          "main_base",
+          "alarm_base",
+          "alarm_word_mode",
+          "register_step"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "classic_combined",
+              "extended_split",
+              "ab_screen_split"
+            ]
+          },
+          "main_base": {
+            "type": "integer"
+          },
+          "plug_base": {
+            "type": "integer"
+          },
+          "repeater_base": {
+            "type": "integer"
+          },
+          "cabinet_base": {
+            "type": "integer"
+          },
+          "alarm_base": {
+            "type": "integer"
+          },
+          "alarm_word_mode": {
+            "enum": [
+              "16bit",
+              "32bit"
+            ]
+          },
+          "register_step": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "evidence_files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

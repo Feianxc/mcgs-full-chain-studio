@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node/editor/OS
+node_modules/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets and mutable state
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+*.pem
+*.key
+*.p12
+*.pfx
+protocol_studio/runs/
+protocol_runs/
+runs/
+shared/
+logs/
+outputs/
+.local/
+*.log
+
+# Test/build outputs
+dist/
+build/
+*.egg-info/
+**/.codex-runtime/
+**/.workspace/
+**/.audit-*/
+**/.test_tmp/
+coverage/
+
+# Proprietary or customer engineering artifacts
+*.MCP
+*.mcp
+*.BAK
+*.bak
+*.mdb
+*.accdb
+*.xls
+*.xlsx
+*.xlsm
+*.xlsb
+*.dwg
+*.dxf
+*.pdf
+*.xml
+*.csv
+*.tsv
+*.zip
+*.7z
+*.rar
+
+# Local privacy denylist (never publish)
+packaging/private-markers.local.txt

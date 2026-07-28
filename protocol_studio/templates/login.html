@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>安全登录 · 动环协议制表台</title>
+    <link rel="stylesheet" href="/static/login.css?v={{ asset_version }}">
+    <link rel="icon" href="/static/favicon.svg?v={{ asset_version }}" type="image/svg+xml">
+  </head>
+  <body class="login-body">
+    <main class="auth-shell">
+      <section class="auth-context" aria-labelledby="productTitle">
+        <header class="auth-brand">
+          <span class="auth-brand__mark" aria-hidden="true">MCGS</span>
+          <span class="auth-brand__name">协议工程制表台</span>
+        </header>
+
+        <div class="auth-context__copy">
+          <p class="auth-kicker">BUSWAY PROTOCOL STUDIO</p>
+          <h1 id="productTitle">动环协议制表台</h1>
+          <p>项目参数、设备拓扑与生成记录仅对已授权账号开放。</p>
+        </div>
+
+        <div class="signal-map" aria-label="A 路与 B 路通过安全节点汇入协议交付">
+          <div class="signal-route signal-route--a">
+            <span class="signal-route__tag">A 路</span>
+            <span class="signal-route__line" aria-hidden="true"></span>
+            <span class="signal-route__device">始端箱</span>
+            <span class="signal-route__device">插接箱</span>
+          </div>
+          <div class="signal-lock" aria-hidden="true">
+            <svg viewBox="0 0 32 32" role="img">
+              <path d="M10 14V10a6 6 0 0 1 12 0v4"></path>
+              <rect x="7" y="14" width="18" height="14" rx="3"></rect>
+              <path d="M16 19v4"></path>
+            </svg>
+            <span>安全会话</span>
+          </div>
+          <div class="signal-route signal-route--b">
+            <span class="signal-route__tag">B 路</span>
+            <span class="signal-route__line" aria-hidden="true"></span>
+            <span class="signal-route__device">始端箱</span>
+            <span class="signal-route__device">插接箱</span>
+          </div>
+          <div class="signal-output" aria-hidden="true">
+            <span>协议表</span>
+            <span>报警代码</span>
+            <span>MCGS CSV</span>
+          </div>
+        </div>
+
+        <footer class="auth-context__foot">
+          <span><i class="status-dot" aria-hidden="true"></i>账号验证</span>
+          <span>加密会话</span>
+          <span>操作隔离</span>
+        </footer>
+      </section>
+
+      <section class="auth-entry" aria-labelledby="loginTitle">
+        <div class="auth-card">
+          <div class="auth-card__head">
+            <span class="auth-card__index" aria-hidden="true">01 / ACCESS</span>
+            <h2 id="loginTitle">登录工作台</h2>
+            <p>使用分配给你的账号继续配置和生成文件。</p>
+          </div>
+
+          {% if notice %}
+          <div class="auth-notice" id="loginNotice" role="status">{{ notice }}</div>
+          {% endif %}
+
+          <form class="auth-form" id="loginForm" novalidate>
+            <input id="loginCsrf" type="hidden" value="{{ login_csrf }}">
+            <label class="auth-field" for="username">
+              <span>账号</span>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                value="{{ username }}"
+                autocomplete="username"
+                autocapitalize="characters"
+                spellcheck="false"
+                maxlength="64"
+                required
+              >
+            </label>
+            <label class="auth-field" for="password">
+              <span>密码</span>
+              <span class="password-control">
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  maxlength="512"
+                  required
+                  autofocus
+                >
+                <button class="password-toggle" id="passwordToggle" type="button" aria-pressed="false">显示</button>
+              </span>
+            </label>
+
+            <div class="auth-feedback" id="loginFeedback" role="alert" aria-live="polite"></div>
+            <button class="auth-submit" id="loginSubmit" type="submit">
+              <span>进入制表台</span>
+              <span class="auth-submit__arrow" aria-hidden="true">→</span>
+            </button>
+          </form>
+
+          <div class="auth-assurance">
+            <span class="assurance-shield" aria-hidden="true"></span>
+            <p><strong>受保护的内部业务系统</strong><br>连续失败将触发临时锁定；首次登录后需要更新密码。</p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="/static/login.js?v={{ asset_version }}"></script>
+  </body>
+</html>

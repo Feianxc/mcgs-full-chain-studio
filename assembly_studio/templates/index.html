@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{ csrf_token }}" />
+    <meta name="auth-enabled" content="{{ 'true' if auth_enabled else 'false' }}" />
+    <meta
+      name="password-change-required"
+      content="{{ 'true' if must_change_password else 'false' }}"
+    />
+    <meta
+      name="description"
+      content="填写项目参数和插接箱输出接线，生成当前项目真正需要执行的MCGS修改清单"
+    />
+    <title>MCGS 程序装配台</title>
+    <link rel="stylesheet" href="/assembly-static/styles.css?v={{ asset_version }}" />
+    <link rel="stylesheet" href="/static/security.css?v={{ asset_version }}" />
+    <link rel="icon" href="/static/favicon.svg?v={{ asset_version }}" type="image/svg+xml" />
+  </head>
+  <body data-ui-version="precision">
+    <a class="skip-link" href="#project-form">跳到项目配置</a>
+
+    <header class="app-header">
+      <div class="brand-block">
+        <div class="bus-mark" aria-hidden="true"><span></span><span></span></div>
+        <div>
+          <h1>MCGS 程序装配台</h1>
+          <p>填好项目，直接得到要改的位置和值</p>
+        </div>
+      </div>
+      <div class="header-tools">
+        <div class="project-identity">
+          <span>当前项目</span>
+          <strong id="header-project-name">新项目</strong>
+        </div>
+        <a class="protocol-link" href="/protocol/">
+          <i data-lucide="table-properties" aria-hidden="true"></i>
+          <span>高级协议制表台</span>
+        </a>
+        {% if auth_enabled %}
+        <div class="account-control">
+          <button
+            class="account-trigger"
+            id="accountMenuToggle"
+            type="button"
+            aria-label="账号安全：{{ auth_username }}"
+            aria-controls="accountMenu"
+            aria-expanded="false"
+          >
+            <span class="account-avatar" aria-hidden="true">{{ auth_username[:1] }}</span>
+            <span class="account-trigger__copy">
+              <strong>{{ auth_username }}</strong>
+              <small>已验证</small>
+            </span>
+            <i data-lucide="chevron-down" aria-hidden="true"></i>
+          </button>
+          <div class="account-menu" id="accountMenu" hidden>
+            <div class="account-menu__identity">
+              <span class="account-avatar account-avatar--large" aria-hidden="true">{{ auth_username[:1] }}</span>
+              <span><strong>{{ auth_username }}</strong><small><i aria-hidden="true"></i>账号已验证</small></span>
+            </div>
+            {% if must_change_password %}
+            <div class="account-menu__alert">首次登录需要更新密码</div>
+            {% endif %}
+            <div class="account-menu__facts" aria-label="账号安全状态">
+              <span><b>会话保护</b><small>{{ security_summary.session_idle_minutes // 60 }} 小时无操作自动退出</small></span>
+              <span><b>异常防护</b><small>连续失败将临时锁定</small></span>
+            </div>
+            <div class="account-menu__actions">
+              <button id="changePasswordBtn" type="button"><i data-lucide="key-round" aria-hidden="true"></i>修改密码</button>
+              <button id="logoutBtn" type="button"><i data-lucide="log-out" aria-hidden="true"></i>安全退出</button>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </header>
+
+    <main class="app-layout">
+      <section class="configuration-view" id="configuration-view">
+        <form id="project-form" novalidate>
+          <header class="configuration-hero">
+            <div>
+              <span class="page-kicker">项目配置</span>
+              <h2>先把项目实际情况填完整</h2>
+              <p>按图纸填写箱型、数量和接线关系。填完后，只显示这个项目需要亲手修改的内容。</p>
+            </div>
+            <div class="configuration-progress" id="configuration-status" role="status" aria-live="polite"></div>
+          </header>
+
+          <section class="input-card project-card">
+            <div class="card-heading">
+              <div><h3>项目信息</h3><p>用于生成名称、活动列和上传参数。</p></div>
+            </div>
+            <div class="form-grid project-grid">
+              <label class="field field-wide">
+                <span>项目名称</span>
+                <input id="project-name" name="projectName" type="text" autocomplete="off" placeholder="例如：A区机房第一列" required />
+              </label>
+              <label class="field">
+                <span>机房标识</span>
+                <input id="room" name="room" type="text" autocomplete="off" placeholder="例如：A区机房" />
+              </label>
+              <label class="field">
+                <span>屏幕监控范围</span>
+                <select id="screen-mode" name="screenMode">
+                  <option value="single_screen_single_column">单屏单列</option>
+                  <option value="single_screen_double_column">单屏双列</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>上传方式</span>
+                <select id="upload-protocol" name="uploadProtocol">
+                  <option value="modbus_rtu_forwarder">Modbus-RTU</option>
+                  <option value="tcpip">TCP/IP</option>
+                </select>
+              </label>
+              <label class="field rtu-field">
+                <span>串口</span>
+                <input id="serial-port" name="serialPort" type="text" autocomplete="off" placeholder="COM4" />
+              </label>
+              <label class="field rtu-field">
+                <span>波特率</span>
+                <input id="baud-rate" name="baudRate" type="number" min="1200" step="1200" />
+              </label>
+              <label class="field">
+                <span>从站地址</span>
+                <input id="station-address" name="stationAddress" type="number" min="1" max="247" />
+              </label>
+              <label class="field tcp-field" hidden>
+                <span>监听端口</span>
+                <input id="tcp-port" name="tcpPort" type="number" min="1" max="65535" />
+              </label>
+              <label class="field tcp-field field-wide" hidden>
+                <span>绑定IP</span>
+                <input id="tcp-bind-ip" name="tcpBindIp" type="text" autocomplete="off" placeholder="留空表示不固定绑定；例如 192.168.1.10" />
+              </label>
+            </div>
+          </section>
+
+          <section class="column-config input-card" data-column-section="A">
+            <div class="card-heading column-heading">
+              <div>
+                <span class="column-chip is-a">第一物理列</span>
+                <h3>S1 / S2 · C1xx / C2xx</h3>
+              </div>
+              <div class="column-counts">
+                <label class="compact-field"><span>插接箱</span><input id="box-count-a" name="boxCountA" type="number" min="1" max="25" /></label>
+                <label class="compact-field"><span>机柜</span><input id="cabinet-count-a" name="cabinetCountA" type="number" min="0" max="99" /></label>
+                <label class="compact-field"><span>每路中继</span><input id="relay-count-a" name="relayCountA" type="number" min="0" max="20" /></label>
+                <label class="compact-field type-batch"><span>全部箱型</span><select id="box-type-a" name="boxTypeA"></select></label>
+              </div>
+            </div>
+            <div class="column-workspace" id="circuit-mapping-a"></div>
+            <div class="sr-only" id="circuit-status-a" aria-live="polite"></div>
+            <div id="box-types-a" hidden></div>
+          </section>
+
+          <section class="column-config input-card" id="column-b-fields" data-column-section="B" hidden>
+            <div class="card-heading column-heading">
+              <div>
+                <span class="column-chip is-b">第二物理列</span>
+                <h3>S3 / S4 · C3xx / C4xx</h3>
+              </div>
+              <div class="column-counts">
+                <label class="compact-field"><span>插接箱</span><input id="box-count-b" name="boxCountB" type="number" min="1" max="25" /></label>
+                <label class="compact-field"><span>机柜</span><input id="cabinet-count-b" name="cabinetCountB" type="number" min="0" max="99" /></label>
+                <label class="compact-field"><span>每路中继</span><input id="relay-count-b" name="relayCountB" type="number" min="0" max="20" /></label>
+                <label class="compact-field type-batch"><span>全部箱型</span><select id="box-type-b" name="boxTypeB"></select></label>
+              </div>
+            </div>
+            <div class="column-workspace" id="circuit-mapping-b"></div>
+            <div class="sr-only" id="circuit-status-b" aria-live="polite"></div>
+            <div id="box-types-b" hidden></div>
+          </section>
+
+          <details class="input-card option-disclosure" id="type-library">
+            <summary>
+              <span><strong>项目用了模板之外的插接箱？</strong><small id="type-replacement-count">没有就不用打开</small></span>
+              <i aria-hidden="true">+</i>
+            </summary>
+            <div class="option-body">
+              <p class="option-intro">选择要替换的模板类型槽。每个箱位仍选择这个槽，程序会按新板卡组合生成修改代码。</p>
+              <p class="sr-only" id="protocol-catalog-status"></p>
+              <div class="slot-grid">
+                <article class="slot-config">
+                  <header><strong>模板 3×1P</strong><span>替换后，所有使用该类型的箱位一起变化</span></header>
+                  <label class="field"><span>替换为</span><select data-replacement-slot="3x1P" name="replacement_3x1P"></select></label>
+                </article>
+                <article class="slot-config">
+                  <header><strong>模板 2×6</strong><span>替换后，所有使用该类型的箱位一起变化</span></header>
+                  <label class="field"><span>替换为</span><select data-replacement-slot="2x6" name="replacement_2x6"></select></label>
+                </article>
+                <article class="slot-config">
+                  <header><strong>模板 3×3</strong><span>替换后，所有使用该类型的箱位一起变化</span></header>
+                  <label class="field"><span>替换为</span><select data-replacement-slot="3x3" name="replacement_3x3"></select></label>
+                </article>
+                <article class="slot-config">
+                  <header><strong>模板 4×3</strong><span>替换后，所有使用该类型的箱位一起变化</span></header>
+                  <label class="field"><span>替换为</span><select data-replacement-slot="4x3" name="replacement_4x3"></select></label>
+                </article>
+              </div>
+            </div>
+          </details>
+
+          <details class="input-card option-disclosure">
+            <summary>
+              <span><strong>其他项目选项</strong><small>只有与模板不同才需要设置</small></span>
+              <i aria-hidden="true">+</i>
+            </summary>
+            <div class="option-body form-grid">
+              <label class="field"><span>温度测量</span><select id="feature-temperature" name="featureTemperature"><option value="preserve">保持模板</option><option value="1">启用</option><option value="0">禁用</option></select></label>
+              <label class="field"><span>漏电流测量</span><select id="feature-leakage" name="featureLeakage"><option value="preserve">保持模板</option><option value="1">启用</option><option value="0">禁用</option></select></label>
+              <label class="field"><span>SPD监测</span><select id="feature-spd" name="featureSpd"><option value="preserve">保持模板</option><option value="1">启用</option><option value="0">禁用</option></select></label>
+              <label class="field"><span>功率报警</span><select id="feature-power" name="featurePower"><option value="preserve">保持模板</option><option value="1">启用</option><option value="0">禁用</option></select></label>
+              <label class="field"><span>第一列显示名称</span><input id="channel-a" name="channelA" type="text" autocomplete="off" /></label>
+              <label class="field"><span>第二列显示名称</span><input id="channel-b" name="channelB" type="text" autocomplete="off" /></label>
+              <label class="field"><span>通讯报警延时</span><input id="alarm-delay" name="alarmDelay" type="number" min="0" /></label>
+            </div>
+          </details>
+
+          <footer class="configuration-footer">
+            <div id="configuration-errors" aria-live="polite"></div>
+            <button class="button button-primary" id="generate-plan" type="submit">查看需要修改的内容</button>
+          </footer>
+        </form>
+      </section>
+
+      <section class="execution-view" id="execution-view" hidden>
+        <header class="execution-header">
+          <button class="button button-secondary" id="return-to-config" type="button">返回项目配置</button>
+          <div><span class="page-kicker">修改清单</span><h2>只做下面这些操作</h2></div>
+        </header>
+        <div class="capacity-ribbon" id="capacity-ribbon"></div>
+        <nav class="workflow-rail" aria-label="修改清单分类">
+          <div class="workflow-track" id="workflow-track"></div>
+        </nav>
+        <section class="workbench">
+          <div id="step-content"></div>
+          <nav class="step-footer" aria-label="前后分类">
+            <button class="button button-secondary" id="previous-step" type="button">上一类</button>
+            <p id="step-position"></p>
+            <button class="button button-primary" id="next-step" type="button">下一类</button>
+          </nav>
+        </section>
+      </section>
+    </main>
+
+    <dialog class="code-dialog" id="code-dialog" aria-labelledby="code-dialog-title">
+      <div class="dialog-header">
+        <div><p id="code-dialog-target"></p><h2 id="code-dialog-title">完整代码</h2></div>
+        <button class="icon-button" id="close-code-dialog" type="button" aria-label="关闭代码窗口">×</button>
+      </div>
+      <div class="dialog-actions">
+        <span id="code-dialog-meta"></span>
+        <button class="button button-primary" id="copy-dialog-code" type="button">复制完整代码</button>
+      </div>
+      <pre class="code-full"><code id="code-dialog-content"></code></pre>
+    </dialog>
+
+    {% if auth_enabled %}
+    <dialog
+      class="security-dialog"
+      id="passwordDialog"
+      data-force-change="{{ 'true' if must_change_password else 'false' }}"
+      aria-labelledby="passwordDialogTitle"
+    >
+      <form class="security-dialog__panel" id="passwordForm" method="dialog" novalidate>
+        <div class="security-dialog__head">
+          <div class="security-dialog__icon" aria-hidden="true"><i data-lucide="shield-check"></i></div>
+          <div>
+            <span>ACCOUNT SECURITY</span>
+            <h2 id="passwordDialogTitle">{{ '首次登录，请更新密码' if must_change_password else '修改登录密码' }}</h2>
+            <p>{{ '更新后将退出当前会话，请使用新密码重新登录。' if must_change_password else '新密码生效后，所有已登录会话都会退出。' }}</p>
+          </div>
+          <button
+            class="security-dialog__close"
+            id="passwordDialogClose"
+            type="button"
+            aria-label="关闭修改密码窗口"
+            {% if must_change_password %}hidden{% endif %}
+          ><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="security-dialog__body">
+          <label class="security-field" for="currentPassword">
+            <span>当前密码</span>
+            <input id="currentPassword" name="current_password" type="password" autocomplete="current-password" maxlength="512" required />
+          </label>
+          <label class="security-field" for="newPassword">
+            <span>新密码</span>
+            <input id="newPassword" name="new_password" type="password" autocomplete="new-password" maxlength="512" required />
+          </label>
+          <label class="security-field" for="confirmPassword">
+            <span>确认新密码</span>
+            <input id="confirmPassword" name="confirm_password" type="password" autocomplete="new-password" maxlength="512" required />
+          </label>
+          <div class="password-rules" aria-label="密码要求">
+            <span>至少 12 位</span>
+            <span>至少包含三类字符</span>
+            <span>不能包含账号名或空格</span>
+          </div>
+          <div class="security-feedback" id="passwordFeedback" role="alert" aria-live="polite"></div>
+        </div>
+        <div class="security-dialog__actions">
+          <button class="security-button security-button--quiet" id="passwordCancelBtn" type="button" {% if must_change_password %}hidden{% endif %}>取消</button>
+          <button class="security-button security-button--primary" id="passwordSubmitBtn" type="submit">更新密码</button>
+        </div>
+      </form>
+    </dialog>
+    {% endif %}
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="application/json" id="agent-project-snapshot">{}</script>
+    <script src="/static/vendor/lucide/lucide.min.js?v={{ asset_version }}"></script>
+    <script src="/static/security.js?v={{ asset_version }}"></script>
+    <script src="/assembly-static/data.js?v={{ asset_version }}"></script>
+    <script src="/assembly-static/workflow-core.js?v={{ asset_version }}"></script>
+    <script src="/assembly-static/type-extension-data.js?v={{ asset_version }}"></script>
+    <script src="/assembly-static/type-extension-refresh-data.js?v={{ asset_version }}"></script>
+    <script src="/assembly-static/type-extension-core.js?v={{ asset_version }}"></script>
+    <script src="/assembly-static/app.js?v={{ asset_version }}"></script>
+  </body>
+</html>

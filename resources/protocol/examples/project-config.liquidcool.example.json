@@ -1,0 +1,111 @@
+{
+  "project_name": "示例项目-液冷子型",
+  "project_code": "DEMO-MCGS-LIQ-001",
+  "protocol_title": "动环通讯协议-液冷",
+  "generation_basis": "max_column",
+  "export_family": "classic_combined",
+  "communication": {
+    "protocol": "Modbus RTU",
+    "baud_rate": 9600,
+    "parity": "N",
+    "data_bits": 8,
+    "stop_bits": 1,
+    "default_screen_address": 1
+  },
+  "topology": {
+    "screen_topology_mode": "single_screen_one_column",
+    "route_mode": "AB_dual_route",
+    "upload_port_profile": "A4B4",
+    "canonical_column_id": "J01",
+    "columns_per_screen": 1,
+    "screen_count": 1,
+    "screen_route_binding": "both_routes_in_one_screen"
+  },
+  "devices": {
+    "start_boxes": {
+      "A": {
+        "count": 1,
+        "instance_names": [
+          "S1"
+        ]
+      },
+      "B": {
+        "count": 1,
+        "instance_names": [
+          "S2"
+        ]
+      }
+    },
+    "plug_boxes": {
+      "A": {
+        "board_number_start": 101,
+        "sequence": [
+          {
+            "type_code": "3P*3",
+            "count": 4,
+            "layout_pattern": "1+1+1"
+          },
+          {
+            "type_code": "1P*3",
+            "count": 2,
+            "layout_pattern": "1"
+          },
+          {
+            "type_code": "3P*3",
+            "count": 3,
+            "layout_pattern": "1+1+1"
+          },
+          {
+            "type_code": "1P*3",
+            "count": 2,
+            "layout_pattern": "1"
+          }
+        ]
+      },
+      "B": {
+        "board_number_start": 201,
+        "sequence": [
+          {
+            "type_code": "3P*3",
+            "count": 4,
+            "layout_pattern": "1+1+1"
+          },
+          {
+            "type_code": "1P*3",
+            "count": 2,
+            "layout_pattern": "1"
+          },
+          {
+            "type_code": "3P*3",
+            "count": 3,
+            "layout_pattern": "1+1+1"
+          },
+          {
+            "type_code": "1P*3",
+            "count": 2,
+            "layout_pattern": "1"
+          }
+        ]
+      }
+    },
+    "repeater_units": {
+      "enabled": true,
+      "alias": "中继器",
+      "A_count": 3,
+      "B_count": 3
+    },
+    "single_cabinet_aggregation": {
+      "enabled": true,
+      "cabinet_count": 12
+    }
+  },
+  "profiles": {
+    "address_profile_id": "classic_liquidcool_main1000_repeater5000_cabinet7000_alarm6000_32bit",
+    "device_library_id": "device-library-v2-board-seed",
+    "export_profile_id": "classic_combined_liquidcool_default",
+    "start_box_template_id": "start_box_standard_36row_thd_energy_32bit_state",
+    "plug_branch_template_id": "plug_branch_standard_30row_full_connector",
+    "repeater_template_id": "repeater_abcn_temp_4row",
+    "single_cabinet_template_id": "single_cabinet_liquidcool_ia_pa_ea_ka"
+  }
+}

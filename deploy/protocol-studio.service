@@ -1,0 +1,40 @@
+[Unit]
+Description=MCGS Full-Chain Studio
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=protocol-studio
+Group=protocol-studio
+WorkingDirectory=/srv/apps/protocol-studio/current
+EnvironmentFile=/etc/protocol-studio/protocol-studio.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/apps/protocol-studio/current/.venv/bin/python -m uvicorn protocol_studio.app:app --host 127.0.0.1 --port 18771 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=45s
+TimeoutStopSec=30s
+UMask=0027
+
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+ReadWritePaths=/srv/apps/protocol-studio/shared
+
+[Install]
+WantedBy=multi-user.target

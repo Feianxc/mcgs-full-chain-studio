@@ -1,0 +1,762 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcgs/project-config.schema.json",
+  "title": "MCGS Protocol Generator Project Config",
+  "type": "object",
+  "required": [
+    "project_name",
+    "generation_basis",
+    "export_family",
+    "topology",
+    "devices",
+    "profiles"
+  ],
+  "properties": {
+    "project_name": {
+      "type": "string"
+    },
+    "project_code": {
+      "type": "string"
+    },
+    "protocol_title": {
+      "type": "string"
+    },
+    "workflow_version": {
+      "enum": [
+        "unified_protocol_v1"
+      ]
+    },
+    "protocol_layout": {
+      "type": "object",
+      "required": [
+        "measurement_layout_mode"
+      ],
+      "properties": {
+        "measurement_layout_mode": {
+          "enum": [
+            "by_plug_box",
+            "by_branch"
+          ]
+        },
+        "base_sheet_name": {
+          "const": "始端箱和插接箱"
+        },
+        "main_base_address": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "downstream_base_address": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "downstream_primary_outputs_per_route": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "downstream_extension_base_address": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "embed_single_cabinet_in_base_sheet": {
+          "const": true
+        },
+        "alarm_start_box_first": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "generation_basis": {
+      "const": "max_column"
+    },
+    "export_family": {
+      "enum": [
+        "auto",
+        "classic_combined",
+        "extended_split",
+        "ab_screen_split"
+      ]
+    },
+    "communication": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "default": "Modbus RTU"
+        },
+        "baud_rate": {
+          "type": "integer",
+          "default": 9600
+        },
+        "parity": {
+          "type": "string",
+          "default": "N"
+        },
+        "data_bits": {
+          "type": "integer",
+          "default": 8
+        },
+        "stop_bits": {
+          "type": "integer",
+          "default": 1
+        },
+        "default_screen_address": {
+          "type": "integer",
+          "default": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "topology": {
+      "type": "object",
+      "required": [
+        "screen_topology_mode",
+        "route_mode"
+      ],
+      "properties": {
+        "screen_topology_mode": {
+          "enum": [
+            "single_screen_one_column",
+            "single_screen_two_columns",
+            "dual_screens_ab_separated",
+            "single_screen_half_channel"
+          ]
+        },
+        "route_mode": {
+          "const": "AB_dual_route"
+        },
+        "upload_port_profile": {
+          "type": "string"
+        },
+        "hardware_form_factor": {
+          "enum": [
+            "horizontal",
+            "din_rail"
+          ]
+        },
+        "environment_rs485_port": {
+          "enum": [
+            "A1B1",
+            "A2B2",
+            "A3B3",
+            "A4B4"
+          ]
+        },
+        "bus_data_port_mode": {
+          "enum": [
+            "single_column_shared",
+            "single_column_split_ab",
+            "double_column_by_column",
+            "double_column_by_route"
+          ]
+        },
+        "bus_data_port_assignments": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "A1B1",
+              "A2B2",
+              "A3B3",
+              "A4B4"
+            ]
+          }
+        },
+        "canonical_column_id": {
+          "type": "string"
+        },
+        "columns_per_screen": {
+          "type": "integer",
+          "enum": [
+            1,
+            2
+          ]
+        },
+        "screen_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "screen_route_binding": {
+          "enum": [
+            "both_routes_in_one_screen",
+            "A_screen_and_B_screen_separate"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "devices": {
+      "type": "object",
+      "required": [
+        "start_boxes",
+        "plug_boxes"
+      ],
+      "properties": {
+        "start_boxes": {
+          "type": "object",
+          "properties": {
+            "A": {
+              "$ref": "#/$defs/deviceInstances"
+            },
+            "B": {
+              "$ref": "#/$defs/deviceInstances"
+            }
+          },
+          "additionalProperties": false
+        },
+        "plug_boxes": {
+          "type": "object",
+          "required": [
+            "A",
+            "B"
+          ],
+          "properties": {
+            "A": {
+              "$ref": "#/$defs/plugSequence"
+            },
+            "B": {
+              "$ref": "#/$defs/plugSequence"
+            }
+          },
+          "additionalProperties": false
+        },
+        "branch_modules": {
+          "type": "object",
+          "properties": {
+            "A": {
+              "$ref": "#/$defs/branchModules"
+            },
+            "B": {
+              "$ref": "#/$defs/branchModules"
+            }
+          },
+          "additionalProperties": false
+        },
+        "screen_columns": {
+          "type": "object",
+          "properties": {
+            "column_2": {
+              "$ref": "#/$defs/screenColumnDevices"
+            }
+          },
+          "additionalProperties": false
+        },
+        "repeater_units": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "alias": {
+              "enum": [
+                "中继器",
+                "中继单元",
+                "连接器测温"
+              ]
+            },
+            "A_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "B_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "A_number_start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "B_number_start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "number_start": {
+              "type": "object",
+              "properties": {
+                "A": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "B": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "base_address": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "columns": {
+              "type": "object",
+              "properties": {
+                "column_1": {
+                  "$ref": "#/$defs/repeaterColumnCounts"
+                },
+                "column_2": {
+                  "$ref": "#/$defs/repeaterColumnCounts"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "single_cabinet_aggregation": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "include_route_data": {
+              "type": "boolean"
+            },
+            "include_total_power_energy": {
+              "type": "boolean"
+            },
+            "cabinet_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "column_counts": {
+              "$ref": "#/$defs/cabinetColumnCounts"
+            },
+            "base_address": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metric_base_addresses": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "extensions": {
+      "type": "object",
+      "properties": {
+        "single_cabinet": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "include_route_data": {
+              "type": "boolean"
+            },
+            "include_total_power_energy": {
+              "type": "boolean"
+            },
+            "cabinet_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "column_counts": {
+              "$ref": "#/$defs/cabinetColumnCounts"
+            },
+            "base_address": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "metric_base_addresses": {
+              "type": "object",
+              "properties": {
+                "IA": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "PA": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "EA": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "KA": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        },
+        "repeater": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "A_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "B_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "columns": {
+              "type": "object",
+              "properties": {
+                "column_1": {
+                  "$ref": "#/$defs/repeaterColumnCounts"
+                },
+                "column_2": {
+                  "$ref": "#/$defs/repeaterColumnCounts"
+                }
+              },
+              "additionalProperties": false
+            },
+            "alias": {
+              "type": "string"
+            },
+            "base_address": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": true
+        },
+        "alarm_state_word": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "base_address": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "word_mode": {
+              "enum": [
+                "16bit",
+                "32bit"
+              ]
+            },
+            "legacy_slide_rail_order": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "profiles": {
+      "type": "object",
+      "required": [
+        "address_profile_id",
+        "device_library_id",
+        "export_profile_id"
+      ],
+      "properties": {
+        "address_profile_id": {
+          "type": "string"
+        },
+        "device_library_id": {
+          "type": "string"
+        },
+        "export_profile_id": {
+          "type": "string"
+        },
+        "start_box_template_id": {
+          "type": "string"
+        },
+        "plug_branch_template_id": {
+          "type": "string"
+        },
+        "repeater_template_id": {
+          "type": "string"
+        },
+        "single_cabinet_template_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "deviceInstances": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "instance_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "device_code_start": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "plugSequence": {
+      "type": "object",
+      "required": [
+        "sequence"
+      ],
+      "properties": {
+        "box_number_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "board_number_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sequence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "type_code",
+              "count",
+              "layout_pattern"
+            ],
+            "properties": {
+              "type_code": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "layout_pattern": {
+                "type": "string",
+                "pattern": "^(1|2)(\\+(1|2))*$"
+              },
+              "box_number": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "board_number_start": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "box_name": {
+                "type": "string"
+              },
+              "instance_name": {
+                "type": "string"
+              },
+              "branch_template_id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "branchModules": {
+      "type": "object",
+      "properties": {
+        "module_sequence": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "type": "object",
+            "required": [
+              "type_code",
+              "layout_pattern",
+              "count"
+            ],
+            "properties": {
+              "type_code": {
+                "type": "string"
+              },
+              "layout_pattern": {
+                "type": "string",
+                "pattern": "^(1|2)(\\+(1|2))*$"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "branch_template_id": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "module_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "module_number_start": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "output_number_start": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "branch_device_number_start": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "branches_per_module": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "variable_numbering_mode": {
+          "enum": [
+            "per_output_contiguous",
+            "per_board_suffix"
+          ],
+          "default": "per_board_suffix"
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "module_sequence"
+          ]
+        },
+        {
+          "required": [
+            "module_count",
+            "branches_per_module"
+          ],
+          "properties": {
+            "branches_per_module": {
+              "const": 2
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "repeaterColumnCounts": {
+      "type": "object",
+      "properties": {
+        "A_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "B_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "A_number_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "B_number_start": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "cabinetColumnCounts": {
+      "type": "object",
+      "properties": {
+        "column_1": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column_2": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "screenColumnDevices": {
+      "type": "object",
+      "required": [
+        "start_boxes",
+        "plug_boxes",
+        "branch_modules"
+      ],
+      "properties": {
+        "start_boxes": {
+          "type": "object",
+          "required": [
+            "A",
+            "B"
+          ],
+          "properties": {
+            "A": {
+              "$ref": "#/$defs/deviceInstances"
+            },
+            "B": {
+              "$ref": "#/$defs/deviceInstances"
+            }
+          },
+          "additionalProperties": false
+        },
+        "plug_boxes": {
+          "type": "object",
+          "required": [
+            "A",
+            "B"
+          ],
+          "properties": {
+            "A": {
+              "$ref": "#/$defs/plugSequence"
+            },
+            "B": {
+              "$ref": "#/$defs/plugSequence"
+            }
+          },
+          "additionalProperties": false
+        },
+        "branch_modules": {
+          "type": "object",
+          "required": [
+            "A",
+            "B"
+          ],
+          "properties": {
+            "A": {
+              "$ref": "#/$defs/branchModules"
+            },
+            "B": {
+              "$ref": "#/$defs/branchModules"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

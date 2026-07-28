@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" role="img" aria-label="DIN rail illustration">
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef3f4"/>
+      <stop offset="0.18" stop-color="#aebabc"/>
+      <stop offset="0.48" stop-color="#f8fbfb"/>
+      <stop offset="0.72" stop-color="#8c999c"/>
+      <stop offset="1" stop-color="#dce3e4"/>
+    </linearGradient>
+    <linearGradient id="lip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#758387"/>
+      <stop offset="1" stop-color="#dce4e5"/>
+    </linearGradient>
+    <pattern id="slots" width="104" height="80" patternUnits="userSpaceOnUse">
+      <rect x="27" y="25" width="50" height="30" rx="15" fill="#566468"/>
+      <rect x="31" y="29" width="42" height="22" rx="11" fill="#263438"/>
+    </pattern>
+    <filter id="shadow" x="-10%" y="-30%" width="120%" height="180%">
+      <feDropShadow dx="0" dy="15" stdDeviation="13" flood-color="#142124" flood-opacity="0.24"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M20 112h1560v46H20z" fill="url(#lip)"/>
+    <path d="M20 158h1560v184H20z" fill="url(#steel)" stroke="#788589" stroke-width="3"/>
+    <path d="M20 342h1560v46H20z" fill="url(#lip)"/>
+    <path d="M20 158h1560v184H20z" fill="url(#slots)" opacity="0.98"/>
+    <path d="M20 176h1560" stroke="#ffffff" stroke-opacity="0.78" stroke-width="5"/>
+    <path d="M20 322h1560" stroke="#59676a" stroke-opacity="0.58" stroke-width="4"/>
+  </g>
+</svg>

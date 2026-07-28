@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="auth-enabled" content="{{ 'true' if auth_enabled else 'false' }}">
+    <meta name="password-change-required" content="{{ 'true' if must_change_password else 'false' }}">
+    <title>动环协议工程制表台</title>
+    <link rel="stylesheet" href="/static/protocol-studio-precision.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/protocol-studio-quiet.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/security.css?v={{ asset_version }}">
+    <link rel="icon" href="/static/favicon.svg?v={{ asset_version }}" type="image/svg+xml">
+  </head>
+  <body data-view-mode="workspace" data-ui-version="precision">
+    <a class="skip-link" href="#mainWorkspace">跳到当前步骤</a>
+
+    <div class="studio-shell">
+      <header class="rail" aria-label="协议制表台命令栏">
+        <div class="rail-main">
+          <div class="brand-block brand-block--compact">
+            <div class="brand-mark" aria-hidden="true">MCGS</div>
+            <div class="brand-copy">
+              <h1>动环协议</h1>
+            </div>
+            <span class="brand-divider" aria-hidden="true"></span>
+            <strong class="header-project-name" id="headerProjectName">未命名项目</strong>
+          </div>
+
+          <div class="rail-status" aria-label="当前状态">
+            <span class="status-badge" id="statusBadge">就绪</span>
+            <div class="message-bar" id="messageBar" role="status" aria-live="polite" aria-atomic="true"></div>
+          </div>
+
+          <div class="rail-workbench">
+            <div class="rail-group rail-actions">
+              <button
+                class="button button--ghost"
+                id="previewBtn"
+                type="button"
+                data-action="open-drawer"
+                data-drawer="preview"
+                aria-controls="previewDrawer"
+              ><i data-lucide="eye" aria-hidden="true"></i><span>预览</span></button>
+              <button
+                class="button button--ghost"
+                id="communicationSettingsBtn"
+                type="button"
+                data-action="open-drawer"
+                data-drawer="communication"
+                aria-controls="communicationDrawer"
+              ><i data-lucide="settings" aria-hidden="true"></i><span>高级设置</span></button>
+              <button
+                class="button button--ghost"
+                id="railUtilityToggle"
+                type="button"
+                data-action="toggle-rail-utilities"
+                aria-controls="railUtilityMenu"
+                aria-expanded="false"
+              ><i data-lucide="ellipsis" aria-hidden="true"></i><span class="visually-hidden">更多</span></button>
+              <div class="rail-utility-menu" id="railUtilityMenu" hidden>
+                <button class="button button--primary" id="generateBtn" type="button" data-testid="generate-excel">生成三份文件</button>
+                <button class="button button--ghost" id="loadPresetBtn" type="button">重置当前配置</button>
+                <button class="button button--ghost" id="recoverDraftBtn" type="button" hidden>恢复本地草稿</button>
+                <button class="button button--ghost file-button" id="importJsonTrigger" type="button">导入配置 JSON</button>
+                <input id="importJsonInput" class="visually-hidden-input" type="file" accept=".json,application/json" tabindex="-1">
+                <button class="button button--ghost" id="downloadDraftBtn" type="button">导出配置草稿</button>
+                <button class="button button--ghost" type="button" data-action="open-drawer" data-drawer="quality" aria-controls="qualityDrawer">复核详情</button>
+                <button class="button button--ghost" type="button" data-action="open-drawer" data-drawer="history" aria-controls="historyDrawer">历史记录</button>
+              </div>
+              {% if auth_enabled %}
+              <div class="account-control">
+                <button
+                  class="account-trigger"
+                  id="accountMenuToggle"
+                  type="button"
+                  aria-label="账号安全：{{ auth_username }}"
+                  aria-controls="accountMenu"
+                  aria-expanded="false"
+                >
+                  <span class="account-avatar" aria-hidden="true">{{ auth_username[:1] }}</span>
+                  <span class="account-trigger__copy">
+                    <strong>{{ auth_username }}</strong>
+                    <small>已验证</small>
+                  </span>
+                  <i data-lucide="chevron-down" aria-hidden="true"></i>
+                </button>
+                <div class="account-menu" id="accountMenu" hidden>
+                  <div class="account-menu__identity">
+                    <span class="account-avatar account-avatar--large" aria-hidden="true">{{ auth_username[:1] }}</span>
+                    <span><strong>{{ auth_username }}</strong><small><i aria-hidden="true"></i>账号已验证</small></span>
+                  </div>
+                  {% if must_change_password %}
+                  <div class="account-menu__alert">首次登录需要更新密码</div>
+                  {% endif %}
+                  <div class="account-menu__facts" aria-label="账号安全状态">
+                    <span><b>会话保护</b><small>{{ security_summary.session_idle_minutes // 60 }} 小时无操作自动退出</small></span>
+                    <span><b>异常防护</b><small>连续失败将临时锁定</small></span>
+                  </div>
+                  <div class="account-menu__actions">
+                    <button id="changePasswordBtn" type="button"><i data-lucide="key-round" aria-hidden="true"></i>修改密码</button>
+                    <button id="logoutBtn" type="button"><i data-lucide="log-out" aria-hidden="true"></i>安全退出</button>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="canvas" id="mainWorkspace" tabindex="-1">
+        <div class="canvas-shell">
+          <div class="workspace-layout">
+            <nav class="workflow-spine" aria-label="协议生成步骤">
+              <div id="workflowSpine"></div>
+            </nav>
+
+            <div class="section-stack">
+              <section class="section-frame section-frame--workspace section-frame--entry" id="quickStartSection">
+                <div class="empty-state">正在加载项目参数…</div>
+              </section>
+
+              <div class="route-workspace" aria-label="A/B 路最大设备配置">
+                <div class="route-workspace__stack">
+                  <section class="section-frame section-frame--workspace" id="routeSectionA"></section>
+                  <section class="section-frame section-frame--workspace" id="routeSectionB"></section>
+                </div>
+              </div>
+
+              <section class="section-frame" id="extensionSection"></section>
+              <section class="section-frame" id="projectSection"></section>
+              <section class="section-frame" id="resultSection"></section>
+              <section class="section-frame" id="profilesSection" hidden></section>
+            </div>
+
+          </div>
+        </div>
+      </main>
+
+      <button
+        class="preview-edge-tab"
+        type="button"
+        data-action="open-drawer"
+        data-drawer="preview"
+        aria-controls="previewDrawer"
+      ><i data-lucide="eye" aria-hidden="true"></i><span>预览</span></button>
+
+      <div class="drawer-backdrop" id="drawerBackdrop" data-action="close-drawer" hidden></div>
+
+      <aside class="precision-drawer precision-drawer--preview" id="previewDrawer" aria-labelledby="previewDrawerTitle" aria-hidden="true" hidden>
+        <div class="drawer-head">
+          <div>
+            <span class="drawer-kicker">实时结构</span>
+            <h2 id="previewDrawerTitle">工作簿预览</h2>
+          </div>
+          <button class="icon-button" type="button" data-action="close-drawer" aria-label="关闭工作簿预览"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="rail-panel rail-panel--preview">
+          <div id="liveSummary">
+            <div class="empty-state">正在计算工作簿结构…</div>
+          </div>
+        </div>
+      </aside>
+
+      <aside class="precision-drawer" id="communicationDrawer" aria-labelledby="communicationDrawerTitle" aria-hidden="true" hidden>
+        <div class="drawer-head">
+          <div>
+            <span class="drawer-kicker">高级设置</span>
+            <h2 id="communicationDrawerTitle">通讯与地址</h2>
+          </div>
+          <button class="icon-button" type="button" data-action="close-drawer" aria-label="关闭通讯设置"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <section class="section-frame section-frame--drawer" id="topologySection"></section>
+      </aside>
+
+      <aside class="precision-drawer" id="qualityDrawer" aria-labelledby="qualityDrawerTitle" aria-hidden="true" hidden>
+        <div class="drawer-head">
+          <div>
+            <span class="drawer-kicker">生成证据</span>
+            <h2 id="qualityDrawerTitle">复核详情</h2>
+          </div>
+          <button class="icon-button" type="button" data-action="close-drawer" aria-label="关闭复核详情"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <section class="section-frame section-frame--drawer" id="qualitySection"></section>
+      </aside>
+
+      <aside class="precision-drawer" id="historyDrawer" aria-labelledby="historyDrawerTitle" aria-hidden="true" hidden>
+        <div class="drawer-head">
+          <div>
+            <span class="drawer-kicker">本地记录</span>
+            <h2 id="historyDrawerTitle">历史生成记录</h2>
+          </div>
+          <button class="icon-button" type="button" data-action="close-drawer" aria-label="关闭历史记录"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <section class="section-frame section-frame--drawer" id="historySection"></section>
+      </aside>
+
+      <div class="mobile-action-bar" id="mobileActionBar" aria-label="当前步骤操作"></div>
+    </div>
+
+    {% if auth_enabled %}
+    <dialog
+      class="security-dialog"
+      id="passwordDialog"
+      data-force-change="{{ 'true' if must_change_password else 'false' }}"
+      aria-labelledby="passwordDialogTitle"
+    >
+      <form class="security-dialog__panel" id="passwordForm" method="dialog" novalidate>
+        <div class="security-dialog__head">
+          <div class="security-dialog__icon" aria-hidden="true"><i data-lucide="shield-check"></i></div>
+          <div>
+            <span>ACCOUNT SECURITY</span>
+            <h2 id="passwordDialogTitle">{{ '首次登录，请更新密码' if must_change_password else '修改登录密码' }}</h2>
+            <p>{{ '更新后将退出当前会话，请使用新密码重新登录。' if must_change_password else '新密码生效后，所有已登录会话都会退出。' }}</p>
+          </div>
+          <button
+            class="security-dialog__close"
+            id="passwordDialogClose"
+            type="button"
+            aria-label="关闭修改密码窗口"
+            {% if must_change_password %}hidden{% endif %}
+          ><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="security-dialog__body">
+          <label class="security-field" for="currentPassword">
+            <span>当前密码</span>
+            <input id="currentPassword" name="current_password" type="password" autocomplete="current-password" maxlength="512" required>
+          </label>
+          <label class="security-field" for="newPassword">
+            <span>新密码</span>
+            <input id="newPassword" name="new_password" type="password" autocomplete="new-password" maxlength="512" required>
+          </label>
+          <label class="security-field" for="confirmPassword">
+            <span>确认新密码</span>
+            <input id="confirmPassword" name="confirm_password" type="password" autocomplete="new-password" maxlength="512" required>
+          </label>
+          <div class="password-rules" aria-label="密码要求">
+            <span>至少 12 位</span>
+            <span>至少包含三类字符</span>
+            <span>不能包含账号名或空格</span>
+          </div>
+          <div class="security-feedback" id="passwordFeedback" role="alert" aria-live="polite"></div>
+        </div>
+        <div class="security-dialog__actions">
+          <button class="security-button security-button--quiet" id="passwordCancelBtn" type="button" {% if must_change_password %}hidden{% endif %}>取消</button>
+          <button class="security-button security-button--primary" id="passwordSubmitBtn" type="submit">更新密码</button>
+        </div>
+      </form>
+    </dialog>
+    {% endif %}
+
+    <script src="/static/vendor/lucide/lucide.min.js?v={{ asset_version }}"></script>
+    <script src="/static/security.js?v={{ asset_version }}"></script>
+    <script src="/static/app.js?v={{ asset_version }}"></script>
+  </body>
+</html>

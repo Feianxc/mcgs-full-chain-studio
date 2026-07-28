@@ -1,0 +1,416 @@
+{
+  "id": "board-layout-catalog-v1",
+  "version": "0.1.0",
+  "modeling_principle": "board_is_minimal_protocol_unit",
+  "type_aliases": {
+    "1*3P": "3P*1",
+    "2*3P": "3P*2",
+    "3*3P": "3P*3",
+    "4*3P": "3P*4",
+    "3*1P": "1P*3"
+  },
+  "board_numbering_rules": {
+    "board_sequence_scope": "per_route",
+    "board_number_start_required_in_project_config": true,
+    "branch_reference_examples": [
+      {
+        "type_code": "3P*3",
+        "layout_pattern": "1+1+1",
+        "board_number_start": 101,
+        "branch_refs": [
+          "101",
+          "102",
+          "103"
+        ]
+      },
+      {
+        "type_code": "3P*3",
+        "layout_pattern": "2+1",
+        "board_number_start": 101,
+        "branch_refs": [
+          "101",
+          "101_2",
+          "102"
+        ]
+      },
+      {
+        "type_code": "3P*4",
+        "layout_pattern": "2+2",
+        "board_number_start": 101,
+        "branch_refs": [
+          "101",
+          "101_2",
+          "102",
+          "102_2"
+        ]
+      },
+      {
+        "type_code": "1P*3",
+        "layout_pattern": "1",
+        "board_number_start": 101,
+        "branch_refs": [
+          "101(A)",
+          "101(B)",
+          "101(C)"
+        ]
+      }
+    ]
+  },
+  "board_templates": [
+    {
+      "id": "board_1to3_3phase",
+      "layout_token": "1",
+      "phase_mode": "three_phase",
+      "branch_capacity": 1,
+      "branch_reference_mode": "board_no",
+      "secondary_branch_suffix": null,
+      "secondary_branch_suffix_scope": "not_applicable",
+      "canonical_use": "3P branch x1",
+      "notes": "一拖三板卡：1 块板卡对应 1 个三相输出/分路。"
+    },
+    {
+      "id": "board_1to6_3phase_dual",
+      "layout_token": "2",
+      "phase_mode": "three_phase",
+      "branch_capacity": 2,
+      "branch_reference_mode": "board_no + board_no_2",
+      "secondary_branch_suffix": "_2",
+      "secondary_branch_suffix_scope": "template_defined",
+      "canonical_use": "3P branch x2",
+      "notes": "一拖六板卡：1 块板卡对应 2 个三相输出，第二分路变量通常使用 `_2`；哪些点位跟随 `_2` 取决于模板。"
+    },
+    {
+      "id": "board_1to3_single_phase_triplet",
+      "layout_token": "1",
+      "phase_mode": "single_phase_triplet",
+      "branch_capacity": 3,
+      "branch_reference_mode": "single_board_with_A_B_C_outputs",
+      "secondary_branch_suffix": null,
+      "secondary_branch_suffix_scope": "not_applicable",
+      "output_phase_sequence": [
+        "A",
+        "B",
+        "C"
+      ],
+      "canonical_use": "1P branch triplet",
+      "notes": "用于 `1P*3` / `3*1P`：只有 1 个开关、1 块板卡、3 个单相输出（A/B/C）。"
+    }
+  ],
+  "plug_box_physical_types": [
+    {
+      "type_code": "3P*1",
+      "aliases": [
+        "1*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 1,
+      "default_layout_pattern": "1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1",
+          "tokens": [
+            1
+          ],
+          "board_count": 1,
+          "branch_count": 1,
+          "board_template_ids": [
+            "board_1to3_3phase"
+          ]
+        }
+      ],
+      "authoritative_source": "user_rule_authoritative",
+      "historical_observed": false,
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "只有 1 个三相输出；拓扑上无歧义。"
+    },
+    {
+      "type_code": "3P*2",
+      "aliases": [
+        "2*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 2,
+      "default_layout_pattern": "1+1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1+1",
+          "tokens": [
+            1,
+            1
+          ],
+          "board_count": 2,
+          "branch_count": 2,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "2",
+          "tokens": [
+            2
+          ],
+          "board_count": 1,
+          "branch_count": 2,
+          "board_template_ids": [
+            "board_1to6_3phase_dual"
+          ]
+        }
+      ],
+      "authoritative_source": "historical_plus_user_rule",
+      "historical_observed": true,
+      "historical_evidence": [
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*2",
+          "physical_box_no": "102",
+          "branch_count": 2,
+          "evidence_label": "插接箱102"
+        },
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*2",
+          "physical_box_no": "105",
+          "branch_count": 2,
+          "evidence_label": "插接箱105"
+        }
+      ],
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "用户明确说明 `2*3P` 可为 2×一拖三或 1×一拖六。"
+    },
+    {
+      "type_code": "3P*3",
+      "aliases": [
+        "3*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 3,
+      "default_layout_pattern": "1+1+1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1+1+1",
+          "tokens": [
+            1,
+            1,
+            1
+          ],
+          "board_count": 3,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "2+1",
+          "tokens": [
+            2,
+            1
+          ],
+          "board_count": 2,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to6_3phase_dual",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "1+2",
+          "tokens": [
+            1,
+            2
+          ],
+          "board_count": 2,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to6_3phase_dual"
+          ]
+        }
+      ],
+      "authoritative_source": "historical_plus_user_rule",
+      "historical_observed": true,
+      "historical_evidence": [
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*3",
+          "physical_box_no": "101",
+          "branch_count": 3,
+          "evidence_label": "插接箱101"
+        },
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*3",
+          "physical_box_no": "103",
+          "branch_count": 3,
+          "evidence_label": "插接箱103"
+        },
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*3",
+          "physical_box_no": "104",
+          "branch_count": 3,
+          "evidence_label": "插接箱104"
+        }
+      ],
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "用户明确说明 `3*3P` 支持 `3×一拖三` / `一拖六+一拖三`，且混排方向允许变化。"
+    },
+    {
+      "type_code": "3P*4",
+      "aliases": [
+        "4*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 4,
+      "default_layout_pattern": "1+1+1+1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1+1+1+1",
+          "tokens": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "board_count": 4,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "2+1+1",
+          "tokens": [
+            2,
+            1,
+            1
+          ],
+          "board_count": 3,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to6_3phase_dual",
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "1+2+1",
+          "tokens": [
+            1,
+            2,
+            1
+          ],
+          "board_count": 3,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to6_3phase_dual",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "1+1+2",
+          "tokens": [
+            1,
+            1,
+            2
+          ],
+          "board_count": 3,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to6_3phase_dual"
+          ]
+        },
+        {
+          "pattern": "2+2",
+          "tokens": [
+            2,
+            2
+          ],
+          "board_count": 2,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to6_3phase_dual",
+            "board_1to6_3phase_dual"
+          ]
+        }
+      ],
+      "authoritative_source": "user_rule_authoritative",
+      "historical_observed": false,
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "用户明确说明 `4*3P` 至少支持 `4×一拖三` / `2×一拖六`，并允许混排。"
+    },
+    {
+      "type_code": "1P*3",
+      "aliases": [
+        "3*1P"
+      ],
+      "phase_mode": "single_phase_triplet",
+      "branch_count": 3,
+      "default_layout_pattern": "1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1",
+          "tokens": [
+            1
+          ],
+          "board_count": 1,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to3_single_phase_triplet"
+          ]
+        }
+      ],
+      "authoritative_source": "user_rule_authoritative",
+      "historical_observed": false,
+      "conservative_default_branch_template": null,
+      "notes": "用户明确说明 `3*1P` / `1P*3` 只有 1 个开关、1 块一拖三板卡、3 个单相输出。"
+    }
+  ],
+  "secondary_branch_suffix_variants": [
+    {
+      "id": "secondary_branch_metrics_with_shared_connector_temp",
+      "scope_rule": "第二分路 `_2` 存在，但部分接点温度保持板卡共享、不带 `_2`。",
+      "evidence": [
+        {
+          "file": "synthetic_reference",
+          "sheet": "始端箱和插接箱",
+          "rows": "98-119 / 113-116",
+          "notes": "`StateC101_2` 到 `PFc101_2` 存在；`TaO101/TbO101/TcO101/TnO101` 未带 `_2`。"
+        }
+      ]
+    },
+    {
+      "id": "secondary_branch_full_with_temperature_suffix",
+      "scope_rule": "第二分路 `_2` 会扩展到电参量与温度点位。",
+      "evidence": [
+        {
+          "file": "synthetic_reference",
+          "sheet": "始端箱和插接箱",
+          "rows": "164-183",
+          "notes": "`Ia101_2` 到 `Tn101_2` 明确存在。"
+        }
+      ]
+    }
+  ],
+  "monitor_module_wording_evidence": [
+    {
+      "file": "synthetic_reference",
+      "sheet": "报警状态",
+      "rows": "29-68",
+      "notes": "报警 bit 文案使用 `A路1#监控模块分路1/分路2`，证明板卡/监控模块是有效建模层。"
+    }
+  ]
+}

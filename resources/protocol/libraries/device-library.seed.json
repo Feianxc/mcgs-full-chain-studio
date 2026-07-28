@@ -1,0 +1,1308 @@
+{
+  "id": "device-library-v2-board-seed",
+  "version": "0.2.0",
+  "derived_from": "device-type-catalog.json + user_rule_authoritative",
+  "entity_aliases": {
+    "repeater_like": [
+      "中继器",
+      "中继单元"
+    ],
+    "business_alias_pending_validation": [
+      "连接器测温"
+    ],
+    "plug_box_type_aliases": {
+      "1*3P": "3P*1",
+      "2*3P": "3P*2",
+      "3*3P": "3P*3",
+      "4*3P": "3P*4",
+      "3*1P": "1P*3"
+    }
+  },
+  "modeling_principle": "board_is_minimal_protocol_unit",
+  "board_templates": [
+    {
+      "id": "board_1to3_3phase",
+      "layout_token": "1",
+      "phase_mode": "three_phase",
+      "branch_capacity": 1,
+      "branch_reference_mode": "board_no",
+      "secondary_branch_suffix": null,
+      "secondary_branch_suffix_scope": "not_applicable",
+      "canonical_use": "3P branch x1",
+      "notes": "一拖三板卡：1 块板卡对应 1 个三相输出/分路。"
+    },
+    {
+      "id": "board_1to6_3phase_dual",
+      "layout_token": "2",
+      "phase_mode": "three_phase",
+      "branch_capacity": 2,
+      "branch_reference_mode": "board_no + board_no_2",
+      "secondary_branch_suffix": "_2",
+      "secondary_branch_suffix_scope": "template_defined",
+      "canonical_use": "3P branch x2",
+      "notes": "一拖六板卡：1 块板卡对应 2 个三相输出，第二分路变量通常使用 `_2`；哪些点位跟随 `_2` 取决于模板。"
+    },
+    {
+      "id": "board_1to3_single_phase_triplet",
+      "layout_token": "1",
+      "phase_mode": "single_phase_triplet",
+      "branch_capacity": 3,
+      "branch_reference_mode": "single_board_with_A_B_C_outputs",
+      "secondary_branch_suffix": null,
+      "secondary_branch_suffix_scope": "not_applicable",
+      "output_phase_sequence": [
+        "A",
+        "B",
+        "C"
+      ],
+      "canonical_use": "1P branch triplet",
+      "notes": "用于 `1P*3` / `3*1P`：只有 1 个开关、1 块板卡、3 个单相输出（A/B/C）。"
+    }
+  ],
+  "secondary_branch_suffix_variants": [
+    {
+      "id": "secondary_branch_metrics_with_shared_connector_temp",
+      "scope_rule": "第二分路 `_2` 存在，但部分接点温度保持板卡共享、不带 `_2`。",
+      "evidence": [
+        {
+          "file": "synthetic_reference",
+          "sheet": "始端箱和插接箱",
+          "rows": "98-119 / 113-116",
+          "notes": "`StateC101_2` 到 `PFc101_2` 存在；`TaO101/TbO101/TcO101/TnO101` 未带 `_2`。"
+        }
+      ]
+    },
+    {
+      "id": "secondary_branch_full_with_temperature_suffix",
+      "scope_rule": "第二分路 `_2` 会扩展到电参量与温度点位。",
+      "evidence": [
+        {
+          "file": "synthetic_reference",
+          "sheet": "始端箱和插接箱",
+          "rows": "164-183",
+          "notes": "`Ia101_2` 到 `Tn101_2` 明确存在。"
+        }
+      ]
+    }
+  ],
+  "start_box_templates": [
+    {
+      "id": "start_box_standard_36row_thd_energy",
+      "source_catalog_id": "start_box_template_1",
+      "row_span": 36,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TnO",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003",
+        "synthetic_reference_004",
+        "synthetic_reference_005",
+        "synthetic_reference_006",
+        "synthetic_reference_007",
+        "synthetic_reference_008"
+      ]
+    },
+    {
+      "id": "start_box_standard_32row_inlet_temp",
+      "source_catalog_id": "start_box_template_2",
+      "row_span": 32,
+      "register_step": 2,
+      "state_word_mode": "32bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003"
+      ]
+    },
+    {
+      "id": "start_box_standard_32row_outlet_temp",
+      "source_catalog_id": "start_box_template_3",
+      "row_span": 32,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TnO",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002"
+      ]
+    },
+    {
+      "id": "start_box_compact_31row_outlet_temp",
+      "source_catalog_id": "start_box_template_4",
+      "row_span": 31,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TnO",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002"
+      ]
+    },
+    {
+      "id": "start_box_compact_31row_inlet_temp",
+      "source_catalog_id": "start_box_template_5",
+      "row_span": 31,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002"
+      ]
+    },
+    {
+      "id": "start_box_extended_load_unbalance_reactive",
+      "source_catalog_id": "start_box_template_6",
+      "row_span": 46,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "LoadS",
+        "UBS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "Qa",
+        "Qb",
+        "Qc",
+        "Q",
+        "Sa",
+        "Sb",
+        "Sc",
+        "S_",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E",
+        "Eqa",
+        "Eqb",
+        "Eqc",
+        "Eq"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "start_box_standard_36row_thd_energy_32bit_state",
+      "source_catalog_id": "start_box_template_1_liquidcool_32bit_state",
+      "row_span": 36,
+      "register_step": 2,
+      "state_word_mode": "32bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TnO",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "start_box_standard_36row_thd_energy_32bit",
+      "source_catalog_id": "start_box_template_1_liquidcool_32bit_state",
+      "row_span": 36,
+      "register_step": 2,
+      "state_word_mode": "32bit",
+      "point_prefix_sequence": [
+        "StateS",
+        "Ia",
+        "Ib",
+        "Ic",
+        "In",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TnO",
+        "THDUa",
+        "THDUb",
+        "THDUc",
+        "THDIa",
+        "THDIb",
+        "THDIc",
+        "THD",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    }
+  ],
+  "plug_branch_templates": [
+    {
+      "id": "plug_branch_standard_29row_connector_temp",
+      "source_catalog_id": "plug_box_branch_template_1",
+      "row_span": 29,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateC",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TaD",
+        "TbD",
+        "TcD",
+        "TnD",
+        "Ea",
+        "Eb",
+        "Ec"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003",
+        "synthetic_reference_004",
+        "synthetic_reference_005",
+        "synthetic_reference_006",
+        "synthetic_reference_007"
+      ]
+    },
+    {
+      "id": "plug_branch_compact_21row",
+      "source_catalog_id": "plug_box_branch_template_2",
+      "row_span": 21,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateC",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "Ea",
+        "Eb",
+        "Ec"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003",
+        "synthetic_reference_004",
+        "synthetic_reference_005"
+      ]
+    },
+    {
+      "id": "plug_branch_mid_26row_partial_connector",
+      "source_catalog_id": "plug_box_branch_template_3",
+      "row_span": 26,
+      "register_step": 2,
+      "state_word_mode": "32bit",
+      "point_prefix_sequence": [
+        "StateC",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TaD",
+        "Ea",
+        "Eb",
+        "Ec"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002"
+      ]
+    },
+    {
+      "id": "plug_branch_dual_dataset_47row",
+      "source_catalog_id": "plug_box_branch_template_4",
+      "row_span": 47,
+      "register_step": 2,
+      "state_word_mode": "32bit",
+      "dataset_group_mode": "dual_output_board_split",
+      "required_board_template_id": "board_1to6_3phase_dual",
+      "dataset_group_split_index": 24,
+      "secondary_prefix_strip_token": "101_",
+      "point_prefix_sequence": [
+        "StateC",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E",
+        "Ia101_",
+        "Ib101_",
+        "Ic101_",
+        "Ua101_",
+        "Ub101_",
+        "Uc101_",
+        "F101_",
+        "Pa101_",
+        "Pb101_",
+        "Pc101_",
+        "P101_",
+        "PFa101_",
+        "PFb101_",
+        "PFc101_",
+        "PF101_",
+        "Ta101_",
+        "Tb101_",
+        "Tc101_",
+        "Tn101_",
+        "Ea101_",
+        "Eb101_",
+        "Ec101_",
+        "E101_"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "plug_branch_compact_22row_freq",
+      "source_catalog_id": "plug_box_branch_template_5",
+      "row_span": 22,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateC",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "Ea",
+        "Eb",
+        "Ec"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "plug_branch_standard_30row_full_connector",
+      "source_catalog_id": "plug_box_branch_template_6",
+      "row_span": 30,
+      "register_step": 2,
+      "state_word_mode": "32bit",
+      "point_prefix_sequence": [
+        "StateC",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TnO",
+        "TaD",
+        "TbD",
+        "TcD",
+        "TnD",
+        "Ea",
+        "Eb",
+        "Ec"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "plug_branch_extended_load_reactive",
+      "source_catalog_id": "plug_box_branch_template_7",
+      "row_span": 41,
+      "register_step": 2,
+      "state_word_mode": "16bit",
+      "point_prefix_sequence": [
+        "StateC",
+        "Loada",
+        "Loadb",
+        "Loadc",
+        "Load",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "Qa",
+        "Qb",
+        "Qc",
+        "Q",
+        "Sa",
+        "Sb",
+        "Sc",
+        "S_",
+        "PFa",
+        "PFb",
+        "PFc",
+        "PF",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "Th",
+        "Ea",
+        "Eb",
+        "Ec",
+        "E",
+        "Eqa",
+        "Eqb",
+        "Eqc",
+        "Eq"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    },
+    {
+      "id": "plug_branch_single_phase_triplet_30row_full_connector",
+      "source_catalog_id": "plug_box_branch_template_single_phase_triplet_1",
+      "row_span": 30,
+      "register_step": 2,
+      "state_word_mode": "32bit",
+      "point_prefix_sequence": [
+        "StateC",
+        "Ia",
+        "Ib",
+        "Ic",
+        "Ua",
+        "Ub",
+        "Uc",
+        "F",
+        "Pa",
+        "Pb",
+        "Pc",
+        "P",
+        "PFa",
+        "PFb",
+        "PFc",
+        "Ta",
+        "Tb",
+        "Tc",
+        "Tn",
+        "TaO",
+        "TbO",
+        "TcO",
+        "TnO",
+        "TaD",
+        "TbD",
+        "TcD",
+        "TnD",
+        "Ea",
+        "Eb",
+        "Ec"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ],
+      "notes": "用于 1P*3 / 3*1P 单板三单相输出：变量仍按单块板卡编号，例如 StateC105 / Ia105 / Ib105 / Ic105。"
+    }
+  ],
+  "plug_box_physical_types": [
+    {
+      "type_code": "3P*1",
+      "aliases": [
+        "1*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 1,
+      "default_layout_pattern": "1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1",
+          "tokens": [
+            1
+          ],
+          "board_count": 1,
+          "branch_count": 1,
+          "board_template_ids": [
+            "board_1to3_3phase"
+          ]
+        }
+      ],
+      "authoritative_source": "user_rule_authoritative",
+      "historical_observed": false,
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "只有 1 个三相输出；拓扑上无歧义。"
+    },
+    {
+      "type_code": "3P*2",
+      "aliases": [
+        "2*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 2,
+      "default_layout_pattern": "1+1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1+1",
+          "tokens": [
+            1,
+            1
+          ],
+          "board_count": 2,
+          "branch_count": 2,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "2",
+          "tokens": [
+            2
+          ],
+          "board_count": 1,
+          "branch_count": 2,
+          "board_template_ids": [
+            "board_1to6_3phase_dual"
+          ]
+        }
+      ],
+      "authoritative_source": "historical_plus_user_rule",
+      "historical_observed": true,
+      "historical_evidence": [
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*2",
+          "physical_box_no": "102",
+          "branch_count": 2,
+          "evidence_label": "插接箱102"
+        },
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*2",
+          "physical_box_no": "105",
+          "branch_count": 2,
+          "evidence_label": "插接箱105"
+        }
+      ],
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "用户明确说明 `2*3P` 可为 2×一拖三或 1×一拖六。"
+    },
+    {
+      "type_code": "3P*3",
+      "aliases": [
+        "3*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 3,
+      "default_layout_pattern": "1+1+1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1+1+1",
+          "tokens": [
+            1,
+            1,
+            1
+          ],
+          "board_count": 3,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "2+1",
+          "tokens": [
+            2,
+            1
+          ],
+          "board_count": 2,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to6_3phase_dual",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "1+2",
+          "tokens": [
+            1,
+            2
+          ],
+          "board_count": 2,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to6_3phase_dual"
+          ]
+        }
+      ],
+      "authoritative_source": "historical_plus_user_rule",
+      "historical_observed": true,
+      "historical_evidence": [
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*3",
+          "physical_box_no": "101",
+          "branch_count": 3,
+          "evidence_label": "插接箱101"
+        },
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*3",
+          "physical_box_no": "103",
+          "branch_count": 3,
+          "evidence_label": "插接箱103"
+        },
+        {
+          "file": "synthetic_reference",
+          "type_code": "3P*3",
+          "physical_box_no": "104",
+          "branch_count": 3,
+          "evidence_label": "插接箱104"
+        }
+      ],
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "用户明确说明 `3*3P` 支持 `3×一拖三` / `一拖六+一拖三`，且混排方向允许变化。"
+    },
+    {
+      "type_code": "3P*4",
+      "aliases": [
+        "4*3P"
+      ],
+      "phase_mode": "three_phase",
+      "branch_count": 4,
+      "default_layout_pattern": "1+1+1+1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1+1+1+1",
+          "tokens": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "board_count": 4,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "2+1+1",
+          "tokens": [
+            2,
+            1,
+            1
+          ],
+          "board_count": 3,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to6_3phase_dual",
+            "board_1to3_3phase",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "1+2+1",
+          "tokens": [
+            1,
+            2,
+            1
+          ],
+          "board_count": 3,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to6_3phase_dual",
+            "board_1to3_3phase"
+          ]
+        },
+        {
+          "pattern": "1+1+2",
+          "tokens": [
+            1,
+            1,
+            2
+          ],
+          "board_count": 3,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to3_3phase",
+            "board_1to3_3phase",
+            "board_1to6_3phase_dual"
+          ]
+        },
+        {
+          "pattern": "2+2",
+          "tokens": [
+            2,
+            2
+          ],
+          "board_count": 2,
+          "branch_count": 4,
+          "board_template_ids": [
+            "board_1to6_3phase_dual",
+            "board_1to6_3phase_dual"
+          ]
+        }
+      ],
+      "authoritative_source": "user_rule_authoritative",
+      "historical_observed": false,
+      "conservative_default_branch_template": "plug_branch_standard_29row_connector_temp",
+      "notes": "用户明确说明 `4*3P` 至少支持 `4×一拖三` / `2×一拖六`，并允许混排。"
+    },
+    {
+      "type_code": "1P*3",
+      "aliases": [
+        "3*1P"
+      ],
+      "phase_mode": "single_phase_triplet",
+      "branch_count": 3,
+      "default_layout_pattern": "1",
+      "layout_pattern_required": true,
+      "allowed_layout_patterns": [
+        {
+          "pattern": "1",
+          "tokens": [
+            1
+          ],
+          "board_count": 1,
+          "branch_count": 3,
+          "board_template_ids": [
+            "board_1to3_single_phase_triplet"
+          ]
+        }
+      ],
+      "authoritative_source": "user_rule_authoritative",
+      "historical_observed": true,
+      "conservative_default_branch_template": "plug_branch_single_phase_triplet_30row_full_connector",
+      "notes": "用户权威规则已确认 `1P*3` / `3*1P` 只有 1 个开关、1 块一拖三板卡、3 个单相输出；当前默认采用单板三单相聚合点位模板闭环。",
+      "historical_evidence": []
+    }
+  ],
+  "repeater_templates": [
+    {
+      "id": "repeater_abcn_temp_4row",
+      "source_catalog_id": "repeater_template_1",
+      "row_span": 4,
+      "register_step": 2,
+      "point_prefix_sequence": [
+        "TaZ",
+        "TbZ",
+        "TcZ",
+        "TnZ"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002",
+        "synthetic_reference_003",
+        "synthetic_reference_004",
+        "synthetic_reference_005",
+        "synthetic_reference_006",
+        "synthetic_reference_007"
+      ]
+    }
+  ],
+  "single_cabinet_templates": [
+    {
+      "id": "single_cabinet_current_sum_ia_only",
+      "source_catalog_id": "single_cabinet_template_1",
+      "row_span": 12,
+      "register_step": 2,
+      "point_prefix_sequence": [
+        "IA"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002"
+      ],
+      "metric_sequence": [
+        "IA"
+      ],
+      "metric_definitions": {
+        "IA": {
+          "register_size": 2,
+          "data_type_label": "32位 浮点数",
+          "description_suffix": "总电流",
+          "unit": "A"
+        }
+      }
+    },
+    {
+      "id": "single_cabinet_standard_ia_pa_ea",
+      "source_catalog_id": "single_cabinet_template_standard_ia_pa_ea_1",
+      "row_span": 36,
+      "register_step": 2,
+      "point_prefix_sequence": [
+        "IA",
+        "PA",
+        "EA"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001",
+        "synthetic_reference_002"
+      ],
+      "metric_sequence": [
+        "IA",
+        "PA",
+        "EA"
+      ],
+      "metric_definitions": {
+        "IA": {
+          "register_size": 2,
+          "data_type_label": "32位 浮点数",
+          "channel_name": "只读4DF",
+          "description_suffix": "总电流",
+          "unit": "A"
+        },
+        "PA": {
+          "register_size": 2,
+          "data_type_label": "32位 浮点数",
+          "channel_name": "只读4DF",
+          "description_suffix": "总功率",
+          "unit": "KW"
+        },
+        "EA": {
+          "register_size": 2,
+          "data_type_label": "32位 浮点数",
+          "channel_name": "只读4DF",
+          "description_suffix": "总电能",
+          "unit": "KWH"
+        }
+      }
+    },
+    {
+      "id": "single_cabinet_liquidcool_ia_pa_ea_ka",
+      "source_catalog_id": "single_cabinet_template_liquidcool_1",
+      "row_span": 48,
+      "metric_sequence": [
+        "IA",
+        "PA",
+        "EA",
+        "KA"
+      ],
+      "metric_definitions": {
+        "IA": {
+          "register_size": 2,
+          "data_type_label": "32位 浮点数",
+          "channel_name": "只读4DF",
+          "description_suffix": "总电流",
+          "unit": "A"
+        },
+        "PA": {
+          "register_size": 2,
+          "data_type_label": "32位 浮点数",
+          "channel_name": "只读4DF",
+          "description_suffix": "总功率",
+          "unit": "KW"
+        },
+        "EA": {
+          "register_size": 2,
+          "data_type_label": "32位 浮点数",
+          "channel_name": "只读4DF",
+          "description_suffix": "总电能",
+          "unit": "KWH"
+        },
+        "KA": {
+          "register_size": 1,
+          "data_type_label": "16位 无符号二进制",
+          "channel_name": "只读4WUB",
+          "description_suffix": "状态字",
+          "unit": null
+        }
+      },
+      "point_prefix_sequence": [
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "IA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "PA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "EA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA",
+        "KA"
+      ],
+      "evidence_files": [
+        "synthetic_reference_001"
+      ]
+    }
+  ]
+}
