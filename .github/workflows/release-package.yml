@@ -1,0 +1,85 @@
+name: Build release package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version stored in release-manifest.json
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --requirement requirements.dev.txt
+          python -m pip check
+
+      - name: Run release gates
+        run: |
+          python scripts/validate_repository.py
+          python scripts/check_public_tree.py --root .
+          python scripts/run_tests.py
+
+      - name: Resolve release version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ -n "$INPUT_VERSION" ]]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${REF_NAME#v}"
+          fi
+          [[ "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build and verify source archive
+        run: |
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          python packaging/build_release.py --version "${{ steps.version.outputs.value }}"
+          python packaging/verify_release.py \
+            "dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz" \
+            --expected-version "${{ steps.version.outputs.value }}"
+
+      - name: Attest verified source archive
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz
+
+      - name: Upload verified source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcgs-full-chain-studio-${{ steps.version.outputs.value }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz
+            dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz.sha256
