@@ -2238,11 +2238,11 @@ restore_previous() {
     printf 'DO NOT REBOOT; retain the active transaction marker for audited recovery.\n' >&2
     exit 1
   fi
+  trap '' INT TERM HUP
   ROLLBACK_RECOVERY_RUNNING="true"
   # This compensation handler owns the terminal path after it starts.  Explicit
   # `command || restore_previous` calls must not re-enter it via EXIT.
   trap - EXIT
-  trap '' INT TERM HUP
   set +e
   printf 'ROLLBACK TARGET FAILED: %s\n' "$reason" >&2
   original_pid="$(systemctl show "$SERVICE" --property=MainPID --value 2>/dev/null)"

@@ -8,11 +8,11 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 ### Fixed
 
-- Make the deploy and rollback compensation handlers take ownership of their terminal path by disarming the parent `EXIT` trap before fail-closed recovery. An explicit `command || rollback_to_previous` or `command || restore_previous` failure now emits exactly one final safety verdict instead of first reporting `FAIL-CLOSED CONFIRMED` and then incorrectly reporting a recursive `FAIL-CLOSED NOT CONFIRMED`. Unexpected `EXIT` still enters the same handler, persistently disables and stops the service, retains the active transaction marker, and terminates unsuccessfully.
+- Make the deploy and rollback compensation handlers take ownership of their terminal path after the recursive-entry check by first ignoring `INT`/`TERM`/`HUP`, then setting the running flag and disarming the parent `EXIT` trap before fail-closed recovery. An explicit `command || rollback_to_previous` or `command || restore_previous` failure now emits exactly one final safety verdict instead of first reporting `FAIL-CLOSED CONFIRMED` and then incorrectly reporting a recursive `FAIL-CLOSED NOT CONFIRMED`. Unexpected `EXIT` still enters the same handler, persistently disables and stops the service, retains the active transaction marker, and terminates unsuccessfully.
 
 ### Verification boundary
 
-- Isolated dynamic Bash probes cover explicit fallback, unexpected status `1`, and unexpected status `42` for both deploy and rollback handlers. They assert message cardinality, terminal status, marker retention, and the disabled/inactive/dead/MainPID-zero state. These probes do not replace real Linux/systemd staging, interruption, reboot, or production recovery acceptance.
+- Thirty-two isolated dynamic Bash cases cover explicit fallback, unexpected status `1`, unexpected status `42`, five signal checkpoints, and eight compensation-failure modes for both deploy and rollback handlers. They assert message cardinality, terminal status, marker retention, and the disabled/inactive/dead/MainPID-zero state. Windows uses trap-state probes after signal masking and does not execute real POSIX signal delivery; real Linux/systemd staging, interruption, reboot, and production recovery acceptance remain separate gates.
 
 ## [0.1.1] - 2026-07-28
 

@@ -132,10 +132,47 @@ def assert_transaction_exit_guard_ownership(
             "marker_status": "rolling_back",
         },
     }
-    case_specs = (
-        ("explicit_fallback", 1, "explicit fallback"),
-        ("unexpected_false", 1, None),
-        ("unexpected_exit_42", 42, None),
+    baseline_case_specs = (
+        {
+            "name": "explicit_fallback",
+            "trigger_status": 1,
+            "explicit_reason": "explicit fallback",
+            "entry": "explicit",
+        },
+        {
+            "name": "unexpected_false",
+            "trigger_status": 1,
+            "explicit_reason": None,
+            "entry": "false",
+        },
+        {
+            "name": "unexpected_exit_42",
+            "trigger_status": 42,
+            "explicit_reason": None,
+            "entry": "exit_42",
+        },
+    )
+    signal_case_specs = (
+        ("TERM", "signal_mask", 130, None),
+        ("INT", "running_assignment", 1, "signal INT before running_assignment"),
+        ("HUP", "exit_trap_clear", 1, "signal HUP before exit_trap_clear"),
+        ("TERM", "errexit_disable", 1, "signal TERM before errexit_disable"),
+        (
+            "INT",
+            "first_systemctl_show",
+            1,
+            "signal INT before first_systemctl_show",
+        ),
+    )
+    failure_modes = (
+        "disable",
+        "fsync_enablement",
+        "stop_verify",
+        "reset_failed",
+        "enablement_probe",
+        "state_readback",
+        "marker_acl",
+        "persistent_assertion",
     )
     expected_state = {
         "enabled": False,
@@ -144,6 +181,9 @@ def assert_transaction_exit_guard_ownership(
         "main_pid": 0,
     }
     completed_cases = 0
+    completed_signal_cases = 0
+    completed_failure_cases = 0
+    signal_delivery_mode = "trap_state_probe" if os.name == "nt" else "real_signal"
 
     with tempfile.TemporaryDirectory(prefix="transaction-exit-guard-") as temporary:
         root = Path(temporary)
@@ -160,66 +200,210 @@ def assert_transaction_exit_guard_ownership(
             ).encode("utf-8")
             handler_source = simple_shell_function_source(content, handler)
             guard_source = simple_shell_function_source(content, "transaction_exit_guard")
+            first_systemctl_show = next(
+                line.strip()
+                for line in handler_source.splitlines()
+                if line.lstrip().startswith(
+                    'original_pid="$(systemctl show "$SERVICE" '
+                )
+            )
             require_in_order(
                 handler_source,
                 [
+                    "trap '' INT TERM HUP",
                     f'{running}="true"',
                     "trap - EXIT",
-                    "trap '' INT TERM HUP",
                     "set +e",
                 ],
-                f"{label}-compensation-handler-owns-terminal-exit",
+                f"{label}-compensation-handler-blocks-signals-before-owning-exit",
             )
 
-            for case_index, (case_name, trigger_status, explicit_reason) in enumerate(
-                case_specs, start=1
-            ):
+            injection_targets = {
+                "signal_mask": "trap '' INT TERM HUP",
+                "running_assignment": f'{running}="true"',
+                "exit_trap_clear": "trap - EXIT",
+                "errexit_disable": "set +e",
+                "first_systemctl_show": first_systemctl_show.replace(
+                    "2>/dev/null", "2> /dev/null"
+                ),
+            }
+            case_specs = [
+                {
+                    **spec,
+                    "failure_mode": "none",
+                    "inject_signal": "none",
+                    "inject_step": "none",
+                    "inject_before": "none",
+                    "expect_confirmed": True,
+                }
+                for spec in baseline_case_specs
+            ]
+            case_specs.extend(
+                {
+                    "name": f"signal_{signal.lower()}_before_{step}",
+                    "trigger_status": trigger_status,
+                    "explicit_reason": explicit_reason,
+                    "entry": "explicit",
+                    "failure_mode": "none",
+                    "inject_signal": signal,
+                    "inject_step": step,
+                    "inject_before": injection_targets[step],
+                    "expect_confirmed": True,
+                }
+                for signal, step, trigger_status, explicit_reason in signal_case_specs
+            )
+            case_specs.extend(
+                {
+                    "name": f"failure_{failure_mode}",
+                    "trigger_status": 1,
+                    "explicit_reason": f"failure branch {failure_mode}",
+                    "entry": "explicit",
+                    "failure_mode": failure_mode,
+                    "inject_signal": "none",
+                    "inject_step": "none",
+                    "inject_before": "none",
+                    "expect_confirmed": False,
+                }
+                for failure_mode in failure_modes
+            )
+
+            for case_index, case_spec in enumerate(case_specs, start=1):
+                case_name = str(case_spec["name"])
+                trigger_status = int(case_spec["trigger_status"])
+                explicit_reason = case_spec["explicit_reason"]
+                failure_mode = str(case_spec["failure_mode"])
+                inject_signal = str(case_spec["inject_signal"])
+                inject_step = str(case_spec["inject_step"])
+                inject_before = str(case_spec["inject_before"])
+                expect_confirmed = bool(case_spec["expect_confirmed"])
                 case_root = root / f"{script_index}-{case_index}-{case_name}"
                 case_root.mkdir()
                 marker = case_root / "transaction.json"
                 state = case_root / "systemd-state.json"
                 trace = case_root / "systemd-trace.txt"
+                signal_trace = case_root / "signal-trace.txt"
                 marker.write_bytes(marker_payload)
-                explicit_command = (
-                    f'false || {handler} "explicit fallback"'
-                    if case_name == "explicit_fallback"
-                    else "false"
-                    if case_name == "unexpected_false"
-                    else "exit 42"
-                )
+                entry = str(case_spec["entry"])
+                if entry == "explicit":
+                    explicit_command = f'false || {handler} "{explicit_reason}"'
+                elif entry == "false":
+                    explicit_command = "false"
+                elif entry == "exit_42":
+                    explicit_command = "exit 42"
+                else:
+                    raise AssertionError(f"unsupported exit-guard test entry: {entry}")
                 harness = f"""\
 set -Eeuo pipefail
 TRANSACTION_FILE="$1"
 SYSTEMD_STATE_FILE="$2"
 SYSTEMD_TRACE_FILE="$3"
+FAILURE_MODE="$4"
+INJECT_SIGNAL="$5"
+INJECT_STEP="$6"
+SIGNAL_TRACE_FILE="$7"
+SIGNAL_DELIVERY_MODE="$8"
 SERVICE="protocol-studio.service"
 SERVICE_USER="protocol-studio"
 TRANSACTION_ACTIVE="true"
 TRANSACTION_COMMITTED="false"
 {running}="false"
+DEBUG_FIRED="false"
+INJECT_BEFORE="none"
+
+case "$INJECT_STEP" in
+  signal_mask) INJECT_BEFORE="trap '' INT TERM HUP" ;;
+  running_assignment) INJECT_BEFORE='{running}="true"' ;;
+  exit_trap_clear) INJECT_BEFORE="trap - EXIT" ;;
+  errexit_disable) INJECT_BEFORE="set +e" ;;
+  first_systemctl_show)
+    # BASH_COMMAND renders the redirection with a separating space.
+    INJECT_BEFORE='{injection_targets["first_systemctl_show"]}'
+    ;;
+  none) ;;
+  *) exit 64 ;;
+esac
+
+debug_injector() {{
+  local pending_command="$BASH_COMMAND"
+  if [[ "$DEBUG_FIRED" == "false" && "$pending_command" == "$INJECT_BEFORE" ]]; then
+    DEBUG_FIRED="true"
+    printf '%s\\t%s\\t%s\\n' \
+      "$INJECT_SIGNAL" "$pending_command" "$SIGNAL_DELIVERY_MODE" \
+      > "$SIGNAL_TRACE_FILE"
+    if [[ "$SIGNAL_DELIVERY_MODE" == "real_signal" ]]; then
+      kill -s "$INJECT_SIGNAL" "$BASHPID"
+    elif [[ "$SIGNAL_DELIVERY_MODE" == "trap_state_probe" ]]; then
+      if [[ "$INJECT_STEP" == "signal_mask" ]]; then
+        exit 130
+      fi
+      local trap_state
+      trap_state="$(trap -p "$INJECT_SIGNAL")"
+      if [[ "$trap_state" != "trap -- '' SIG$INJECT_SIGNAL" ]]; then
+        printf '%s\\t%s\\n' "PROBE_FAILURE" "$trap_state" >> "$SIGNAL_TRACE_FILE"
+        exit 70
+      fi
+    else
+      exit 64
+    fi
+  fi
+}}
+
+write_systemd_state() {{
+  printf 'enabled=%s\\nactive_state=%s\\nsub_state=%s\\nmain_pid=%s\\n' \
+    "$1" "$2" "$3" "$4" > "$SYSTEMD_STATE_FILE"
+}}
+
+read_systemd_state() {{
+  local requested="$1"
+  local key
+  local value
+  while IFS='=' read -r key value; do
+    if [[ "$key" == "$requested" ]]; then
+      printf '%s\\n' "$value"
+      return 0
+    fi
+  done < "$SYSTEMD_STATE_FILE"
+  return 1
+}}
 
 systemctl() {{
+  local enabled
+  local active_state
+  local sub_state
+  local main_pid
   case "$1" in
     disable)
       printf '%s\\n' "disable" >> "$SYSTEMD_TRACE_FILE"
-      printf '%s\\n' '{{"enabled":false,"active_state":"inactive","sub_state":"dead","main_pid":0}}' > "$SYSTEMD_STATE_FILE"
+      if [[ "$FAILURE_MODE" == "disable" ]]; then
+        return 1
+      fi
+      active_state="$(read_systemd_state active_state)"
+      sub_state="$(read_systemd_state sub_state)"
+      main_pid="$(read_systemd_state main_pid)"
+      write_systemd_state false "$active_state" "$sub_state" "$main_pid"
       ;;
     reset-failed)
       printf '%s\\n' "reset-failed" >> "$SYSTEMD_TRACE_FILE"
+      [[ "$FAILURE_MODE" != "reset_failed" ]]
       ;;
     show)
+      if [[ "$FAILURE_MODE" == "state_readback" \
+        && "$*" == *"--property=ActiveState --value"* ]]; then
+        enabled="$(read_systemd_state enabled)"
+        write_systemd_state "$enabled" active running 99999999
+      fi
       case "$*" in
         *"--property=ActiveState --value"*)
           printf '%s\\n' "show-active" >> "$SYSTEMD_TRACE_FILE"
-          printf '%s\\n' "inactive"
+          read_systemd_state active_state
           ;;
         *"--property=SubState --value"*)
           printf '%s\\n' "show-sub" >> "$SYSTEMD_TRACE_FILE"
-          printf '%s\\n' "dead"
+          read_systemd_state sub_state
           ;;
         *"--property=MainPID --value"*)
           printf '%s\\n' "show-main-pid" >> "$SYSTEMD_TRACE_FILE"
-          printf '%s\\n' "0"
+          read_systemd_state main_pid
           ;;
         *)
           return 64
@@ -241,24 +425,60 @@ stat() {{
   command stat "$@"
 }}
 
-fsync_systemd_enablement_state() {{ return 0; }}
-stop_service_and_verify() {{ return 0; }}
+fsync_systemd_enablement_state() {{
+  printf '%s\\n' "fsync-enablement" >> "$SYSTEMD_TRACE_FILE"
+  [[ "$FAILURE_MODE" != "fsync_enablement" ]]
+}}
+stop_service_and_verify() {{
+  local enabled
+  printf '%s\\n' "stop-verify" >> "$SYSTEMD_TRACE_FILE"
+  if [[ "$FAILURE_MODE" == "stop_verify" ]]; then
+    return 1
+  fi
+  enabled="$(read_systemd_state enabled)"
+  write_systemd_state "$enabled" inactive dead 0
+}}
 probe_service_enablement() {{
-  SERVICE_ENABLE_STDOUT="disabled"
-  SERVICE_ENABLE_EXIT="1"
+  printf '%s\\n' "probe-enablement" >> "$SYSTEMD_TRACE_FILE"
+  if [[ "$FAILURE_MODE" == "enablement_probe" || "$FAILURE_MODE" == "disable" ]]; then
+    SERVICE_ENABLE_STDOUT="enabled"
+    SERVICE_ENABLE_EXIT="0"
+  else
+    SERVICE_ENABLE_STDOUT="disabled"
+    SERVICE_ENABLE_EXIT="1"
+  fi
 }}
-acl_is_minimal() {{ return 0; }}
+acl_is_minimal() {{
+  printf '%s\\n' "acl-minimal" >> "$SYSTEMD_TRACE_FILE"
+  [[ "$FAILURE_MODE" != "marker_acl" ]]
+}}
 assert_service_persistently_disabled() {{
-  [[ "$(cat -- "$SYSTEMD_STATE_FILE")" == \
-    '{{"enabled":false,"active_state":"inactive","sub_state":"dead","main_pid":0}}' ]]
+  printf '%s\\n' "assert-persistent-disabled" >> "$SYSTEMD_TRACE_FILE"
+  if [[ "$FAILURE_MODE" == "persistent_assertion" ]]; then
+    return 1
+  fi
+  [[ "$(read_systemd_state enabled)" == "false" \
+    && "$(read_systemd_state active_state)" == "inactive" \
+    && "$(read_systemd_state sub_state)" == "dead" \
+    && "$(read_systemd_state main_pid)" == "0" ]]
 }}
-cleanup_candidate() {{ return 0; }}
+cleanup_candidate() {{
+  printf '%s\\n' "cleanup-candidate" >> "$SYSTEMD_TRACE_FILE"
+  return 0
+}}
+
+write_systemd_state true active running 99999999
 
 {handler_source}
 
 {guard_source}
 
 trap transaction_exit_guard EXIT
+trap 'exit 130' INT TERM HUP
+if [[ "$INJECT_SIGNAL" != "none" ]]; then
+  set -T
+  trap debug_injector DEBUG
+fi
 {explicit_command}
 """
                 harness_path = case_root / "harness.sh"
@@ -270,12 +490,20 @@ trap transaction_exit_guard EXIT
                         marker.as_posix(),
                         state.as_posix(),
                         trace.as_posix(),
+                        failure_mode,
+                        inject_signal,
+                        inject_step,
+                        signal_trace.as_posix(),
+                        signal_delivery_mode,
                     ],
                     cwd=REPO_ROOT,
                     check=False,
                     capture_output=True,
                     text=True,
                     encoding="utf-8",
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+                    ),
                 )
                 if completed.returncode != 1:
                     raise AssertionError(
@@ -303,14 +531,24 @@ trap transaction_exit_guard EXIT
                     "recursive": stderr.count("recursive transaction failure"),
                     "do_not_reboot": stderr.count("DO NOT REBOOT"),
                 }
-                expected_counts = {
-                    "failure_prefix": 1,
-                    "reason": 1,
-                    "confirmed": 1,
-                    "not_confirmed": 0,
-                    "recursive": 0,
-                    "do_not_reboot": 0,
-                }
+                if expect_confirmed:
+                    expected_counts = {
+                        "failure_prefix": 1,
+                        "reason": 1,
+                        "confirmed": 1,
+                        "not_confirmed": 0,
+                        "recursive": 0,
+                        "do_not_reboot": 0,
+                    }
+                else:
+                    expected_counts = {
+                        "failure_prefix": 1,
+                        "reason": 1,
+                        "confirmed": 0,
+                        "not_confirmed": 1,
+                        "recursive": 0,
+                        "do_not_reboot": 1,
+                    }
                 if message_counts != expected_counts:
                     raise AssertionError(
                         f"{label}/{case_name}: contradictory compensation messages: "
@@ -320,13 +558,62 @@ trap transaction_exit_guard EXIT
                     raise AssertionError(
                         f"{label}/{case_name}: active transaction marker was modified"
                     )
-                systemd_state = json.loads(state.read_text(encoding="utf-8"))
+                if inject_signal != "none":
+                    expected_signal_trace = (
+                        f"{inject_signal}\t{inject_before}\t{signal_delivery_mode}"
+                    )
+                    if (
+                        not signal_trace.is_file()
+                        or signal_trace.read_text(encoding="utf-8").splitlines()
+                        != [expected_signal_trace]
+                    ):
+                        actual_signal_trace = (
+                            signal_trace.read_text(encoding="utf-8")
+                            if signal_trace.exists()
+                            else None
+                        )
+                        raise AssertionError(
+                            f"{label}/{case_name}: DEBUG signal injection did not fire "
+                            f"exactly once at the requested command: "
+                            f"{actual_signal_trace!r}"
+                        )
+                    completed_signal_cases += 1
+                elif signal_trace.exists():
+                    raise AssertionError(
+                        f"{label}/{case_name}: unexpected signal trace was written"
+                    )
+
+                raw_systemd_state: dict[str, str] = {}
+                for line in state.read_text(encoding="utf-8").splitlines():
+                    key, separator, value = line.partition("=")
+                    if not separator or key in raw_systemd_state:
+                        raise AssertionError(
+                            f"{label}/{case_name}: malformed systemd state line: "
+                            f"{line!r}"
+                        )
+                    raw_systemd_state[key] = value
+                if raw_systemd_state.get("enabled") not in {"true", "false"}:
+                    raise AssertionError(
+                        f"{label}/{case_name}: invalid systemd enabled state"
+                    )
+                try:
+                    main_pid = int(raw_systemd_state["main_pid"])
+                except (KeyError, ValueError) as error:
+                    raise AssertionError(
+                        f"{label}/{case_name}: invalid systemd MainPID state"
+                    ) from error
+                systemd_state = {
+                    "enabled": raw_systemd_state["enabled"] == "true",
+                    "active_state": raw_systemd_state.get("active_state"),
+                    "sub_state": raw_systemd_state.get("sub_state"),
+                    "main_pid": main_pid,
+                }
                 if (
                     type(systemd_state.get("enabled")) is not bool
                     or type(systemd_state.get("active_state")) is not str
                     or type(systemd_state.get("sub_state")) is not str
                     or type(systemd_state.get("main_pid")) is not int
-                    or systemd_state != expected_state
+                    or (expect_confirmed and systemd_state != expected_state)
                 ):
                     raise AssertionError(
                         f"{label}/{case_name}: fail-closed systemd state drifted: "
@@ -339,6 +626,12 @@ trap transaction_exit_guard EXIT
                     "show-active": 1,
                     "show-sub": 1,
                     "show-main-pid": 2,
+                    "fsync-enablement": 1,
+                    "stop-verify": 1,
+                    "probe-enablement": 1,
+                    "acl-minimal": 1,
+                    "assert-persistent-disabled": 1,
+                    "cleanup-candidate": 1 if label == "deploy-release.sh" else 0,
                 }
                 trace_counts = {
                     name: trace_lines.count(name) for name in expected_trace_counts
@@ -348,12 +641,23 @@ trap transaction_exit_guard EXIT
                         f"{label}/{case_name}: systemd compensation trace drifted: "
                         f"{trace_counts!r}"
                     )
+                if failure_mode != "none":
+                    completed_failure_cases += 1
                 completed_cases += 1
 
     return {
         "scripts": len(contracts),
         "cases": completed_cases,
-        "trigger_statuses": [spec[1] for spec in case_specs],
+        "baseline_cases": len(contracts) * len(baseline_case_specs),
+        "signal_injection_cases": completed_signal_cases,
+        "failure_branch_cases": completed_failure_cases,
+        "signals": sorted({spec[0] for spec in signal_case_specs}),
+        "signal_delivery_mode": signal_delivery_mode,
+        "real_signal_injection_executed": signal_delivery_mode == "real_signal",
+        "failure_modes": list(failure_modes),
+        "trigger_statuses": [
+            int(spec["trigger_status"]) for spec in baseline_case_specs
+        ],
         "terminal_status": 1,
         "marker_retained": True,
         "systemd_fail_closed_state": expected_state,
@@ -2049,6 +2353,10 @@ def main() -> int:
     ) = assert_recovery_marker_types(recovery)
     assert_recovery_guard_reports_actual_state(recovery)
 
+    not_proven = ["real systemd behavior", "power-loss atomicity", "production recovery"]
+    if not exit_guard_contract["real_signal_injection_executed"]:
+        not_proven.insert(0, "real POSIX signal delivery (Windows trap-state probe only)")
+
     report = {
         "status": "passed",
         "suite": "release_transaction_contract",
@@ -2059,6 +2367,25 @@ def main() -> int:
         "checks": {
             "transaction_exit_guard_scripts": exit_guard_contract["scripts"],
             "transaction_exit_guard_dynamic_cases": exit_guard_contract["cases"],
+            "transaction_exit_guard_baseline_cases": exit_guard_contract[
+                "baseline_cases"
+            ],
+            "transaction_exit_guard_signal_injection_cases": exit_guard_contract[
+                "signal_injection_cases"
+            ],
+            "transaction_exit_guard_failure_branch_cases": exit_guard_contract[
+                "failure_branch_cases"
+            ],
+            "transaction_exit_guard_signals": exit_guard_contract["signals"],
+            "transaction_exit_guard_signal_delivery_mode": exit_guard_contract[
+                "signal_delivery_mode"
+            ],
+            "transaction_exit_guard_real_signal_injection_executed": (
+                exit_guard_contract["real_signal_injection_executed"]
+            ),
+            "transaction_exit_guard_failure_modes": exit_guard_contract[
+                "failure_modes"
+            ],
             "transaction_exit_guard_trigger_statuses": exit_guard_contract[
                 "trigger_statuses"
             ],
@@ -2109,11 +2436,7 @@ def main() -> int:
             ],
             "process_environment_provenance_bound": True,
         },
-        "not_proven": [
-            "real systemd behavior",
-            "power-loss atomicity",
-            "production recovery",
-        ],
+        "not_proven": not_proven,
     }
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     return 0
