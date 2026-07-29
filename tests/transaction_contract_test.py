@@ -2430,7 +2430,8 @@ def main() -> int:
     if not exit_guard_contract["real_signal_injection_executed"]:
         not_proven.insert(
             0,
-            "real POSIX guard-active signal delivery (Windows trap-state probe only)",
+            "real POSIX signal delivery "
+            "(Windows uses signal-guard invocation and trap-state probes only)",
         )
 
     report = {

@@ -12,7 +12,7 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 ### Verification boundary
 
-- Thirty-six isolated dynamic Bash cases cover explicit fallback, unexpected status `1`, unexpected status `42`, five handler signal checkpoints, unexpected-false and unexpected-exit-42 signal handoff after guard entry, and eight compensation-failure modes for both deploy and rollback handlers. They assert message cardinality, terminal status, marker retention, and the disabled/inactive/dead/MainPID-zero state. Windows executes the actual signal-guard function for pre-mask handoff and trap-state probes after masking, but does not execute real POSIX signal delivery; real Linux/systemd staging, interruption, reboot, and production recovery acceptance remain separate gates.
+- Thirty-six isolated dynamic Bash cases cover explicit fallback, unexpected status `1`, unexpected status `42`, five handler signal checkpoints, unexpected-false and unexpected-exit-42 signal handoff after guard entry, and eight compensation-failure modes for both deploy and rollback handlers. Confirmed-compensation cases assert message cardinality, terminal status, marker retention, and the disabled/inactive/dead/MainPID-zero state; injected compensation-failure cases instead require exactly one unconfirmed verdict and `DO NOT REBOOT` warning while retaining the marker and tracing every attempted recovery step. Windows executes the actual signal-guard function for pre-mask handoff and trap-state probes after masking, but does not execute real POSIX signal delivery; real Linux/systemd staging, interruption, reboot, and production recovery acceptance remain separate gates.
 
 ## [0.1.1] - 2026-07-28
 
