@@ -4,6 +4,16 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-29
+
+### Fixed
+
+- Make the deploy and rollback compensation handlers take ownership of their terminal path by disarming the parent `EXIT` trap before fail-closed recovery. An explicit `command || rollback_to_previous` or `command || restore_previous` failure now emits exactly one final safety verdict instead of first reporting `FAIL-CLOSED CONFIRMED` and then incorrectly reporting a recursive `FAIL-CLOSED NOT CONFIRMED`. Unexpected `EXIT` still enters the same handler, persistently disables and stops the service, retains the active transaction marker, and terminates unsuccessfully.
+
+### Verification boundary
+
+- Isolated dynamic Bash probes cover explicit fallback, unexpected status `1`, and unexpected status `42` for both deploy and rollback handlers. They assert message cardinality, terminal status, marker retention, and the disabled/inactive/dead/MainPID-zero state. These probes do not replace real Linux/systemd staging, interruption, reboot, or production recovery acceptance.
+
 ## [0.1.1] - 2026-07-28
 
 ### Added
@@ -74,8 +84,9 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 ### Known issues
 
-- `v0.1.0` is published as a prerelease. Its deployment scripts have known production-safety defects and must not be used for production deployment; use the reviewed `v0.1.1` contract instead.
+- `v0.1.0` is published as a prerelease with known production-safety defects. `v0.1.1` is retained for audit only because its explicit transaction-compensation path can emit contradictory final safety verdicts. Do not use either version to deploy, roll back or recover a host; use the reviewed `v0.1.2` contract instead.
 
-[Unreleased]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Feianxc/mcgs-full-chain-studio/releases/tag/v0.1.0

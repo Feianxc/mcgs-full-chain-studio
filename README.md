@@ -8,7 +8,7 @@
 
 > **非官方项目。** 本仓库与 MCGS 软件的开发商、商标权利人没有隶属、授权或背书关系。仓库不包含 MCGS 软件、许可证、帮助文档、`.MCP` 工程、模板二进制、客户图纸、真实点表、账号数据库或历史生成结果。
 
-> **版本与部署警告。** 本文中的构建和部署合同面向 `v0.1.1`。公开的 `v0.1.0` 已标记为 prerelease，其部署脚本存在已知的生产安全缺陷，**不得用于生产部署**。仓库测试、静态合同检查或本文档本身都不表示 `v0.1.1` 已经在任何生产主机完成切换、回滚或恢复验收。
+> **版本与部署警告。** 本文中的构建和部署合同面向 `v0.1.2`。公开的 `v0.1.0` 已标记为 prerelease，其部署脚本存在已知的生产安全缺陷；`v0.1.1` 的显式事务补偿路径会产生互相矛盾的最终安全结论，仅保留用于审计。**不得使用 `v0.1.0` 或 `v0.1.1` 执行部署、回滚或恢复。**仓库测试、静态合同检查或本文档本身都不表示 `v0.1.2` 已经在任何生产主机完成切换、回滚或恢复验收。
 
 ## 能做什么
 
@@ -76,9 +76,9 @@ python -m uvicorn protocol_studio.app:app --host 127.0.0.1 --port 8123
 
 打开 `http://127.0.0.1:8123/`。本地开发默认不启用账号系统；不要把未启用认证的实例暴露到公网。
 
-`v0.1.1` 的直接生产依赖固定为 FastAPI `0.140.7`、Starlette `1.3.1`、Uvicorn `0.38.0`、Pydantic `2.12.5`、Jinja2 `3.1.6` 和 openpyxl `3.1.2`。生产部署不使用上述本地开发安装命令，而是按全哈希的 17 包传递锁从受信离线 Wheelhouse 安装。该 17-wheel 输入已在目标 Linux 主机完成摘要回读、无索引离线安装、`pip check` 和依赖导入 smoke；最终冻结源码归档的完整 Linux runner、staging 与生产验收仍是独立门禁。Wheelhouse 是受控部署输入，不包含在公开源码发布资产中。
+`v0.1.2` 的直接生产依赖固定为 FastAPI `0.140.7`、Starlette `1.3.1`、Uvicorn `0.38.0`、Pydantic `2.12.5`、Jinja2 `3.1.6` 和 openpyxl `3.1.2`。生产部署不使用上述本地开发安装命令，而是按全哈希的 17 包传递锁从受信离线 Wheelhouse 安装。该 17-wheel 输入已在目标 Linux 主机完成摘要回读、无索引离线安装、`pip check` 和依赖导入 smoke；最终冻结源码归档的完整 Linux runner、staging 与生产验收仍是独立门禁。Wheelhouse 是受控部署输入，不包含在公开源码发布资产中。
 
-应用从 `pyproject.toml` 读取项目版本，FastAPI 应用元数据因此与 `0.1.1` 保持一致；`Dockerfile` 也会把 `pyproject.toml` 与生产锁一同复制进镜像，并把官方 `python:3.11.6-slim-bookworm` 基础镜像固定到 manifest-list digest `sha256:cc758519481092eb5a4a5ab0c1b303e288880d59afc601958d19e95b300bc86b`。这里描述的是代码合同；本地发布工作站没有 Docker CLI，而且当前 Docker 构建上下文不会复制打包时生成的 `release-manifest.json`，所以容器没有 Release identity。正式容器发布与生产使用保持阻断，直到补齐 Manifest 身份、真实 build/run、基础镜像与 OS 漏洞扫描及运行验收。
+应用从 `pyproject.toml` 读取项目版本，FastAPI 应用元数据因此与 `0.1.2` 保持一致；`Dockerfile` 也会把 `pyproject.toml` 与生产锁一同复制进镜像，并把官方 `python:3.11.6-slim-bookworm` 基础镜像固定到 manifest-list digest `sha256:cc758519481092eb5a4a5ab0c1b303e288880d59afc601958d19e95b300bc86b`。这里描述的是代码合同；本地发布工作站没有 Docker CLI，而且当前 Docker 构建上下文不会复制打包时生成的 `release-manifest.json`，所以容器没有 Release identity。正式容器发布与生产使用保持阻断，直到补齐 Manifest 身份、真实 build/run、基础镜像与 OS 漏洞扫描及运行验收。
 
 ## 启用账号系统
 
@@ -106,7 +106,7 @@ python -m pip install -r requirements.dev.txt
 python scripts/validate_repository.py
 python scripts/check_public_tree.py --root .
 python scripts/run_tests.py
-python packaging/build_release.py --version 0.1.1 --check-only
+python packaging/build_release.py --version 0.1.2 --check-only
 ```
 
 上述检查覆盖 Python 编译、JavaScript 语法与测试、协议回归、认证回归、JSON/YAML/TOML 基础校验和公开目录隐私扫描。部署合同测试只检查脚本文本约束与 Shell/Python 静态边界；它不会执行真实的 systemd 切换、故障补偿或断电恢复。测试通过既不代表生产部署通过，也不代表 MCGS 运行验收通过。
@@ -116,40 +116,40 @@ python packaging/build_release.py --version 0.1.1 --check-only
 打包器只读取 [`packaging/release-allowlist.json`](packaging/release-allowlist.json) 中的白名单；拒绝符号链接、客户常见文件格式、运行缓存和绝对路径条目。验证器还要求策略与 Manifest 精确覆盖九棵非空发布树，并在每棵树中找到稳定入口 sentinel；树中的其他可选文件不会因为一次构建中存在就被误设为全部必需。
 
 ```bash
-python packaging/build_release.py --version 0.1.1
-python packaging/verify_release.py dist/mcgs-full-chain-studio-0.1.1.tar.gz
+python packaging/build_release.py --version 0.1.2
+python packaging/verify_release.py dist/mcgs-full-chain-studio-0.1.2.tar.gz
 ```
 
 发布包内的 `release-manifest.json` 只记录 POSIX 相对路径、字节数与 SHA-256，不记录构建机器路径。构建器同时生成 `.tar.gz.sha256`；生产命令必须显式传入经过可信渠道核验的 `--archive-sha256`，不能只依赖部署主机重新计算的摘要。
 
 正式 release 树启动时会计算 `release-manifest.json` 的 SHA-256；`/api/health` 同时在 JSON 字段 `release_manifest_sha256` 和唯一响应头 `X-MCGS-Release-Manifest-SHA256` 返回该小写摘要。没有 Manifest 的源码/开发树会返回 JSON `null` 并省略该响应头，因此普通 HTTP 可用性不能冒充 release identity。
 
-仓库中的 [`packaging/generate_sbom.py`](packaging/generate_sbom.py) 已在代码与合成合同测试中实现以下 v0.1.1 门禁：校验 `pyproject.toml` 的项目名、版本和六个 exact direct pins，要求非空全哈希生产锁与精确匹配的纯 `.whl` Wheelhouse，并按 OpenCloudOS/Linux x86_64、CPython 3.11.6 评估适用的 `Requires-Dist` markers 和传递依赖闭包，再生成 CycloneDX 1.5 JSON 与 SHA-256 sidecar。本地独立回读已确认 17 个锁定应用依赖组件和 18 条依赖记录；这不自动包含 `venv`/`ensurepip` 带入的 pip、setuptools 等部署工具。官方 CycloneDX Schema 验证、同一冻结提交上的正式生成、GitHub provenance 和目标运行验收仍是独立门禁：
+仓库中的 [`packaging/generate_sbom.py`](packaging/generate_sbom.py) 已在代码与合成合同测试中实现以下 v0.1.2 门禁：校验 `pyproject.toml` 的项目名、版本和六个 exact direct pins，要求非空全哈希生产锁与精确匹配的纯 `.whl` Wheelhouse，并按 OpenCloudOS/Linux x86_64、CPython 3.11.6 评估适用的 `Requires-Dist` markers 和传递依赖闭包，再生成 CycloneDX 1.5 JSON 与 SHA-256 sidecar。本地独立回读已确认 17 个锁定应用依赖组件和 18 条依赖记录；这不自动包含 `venv`/`ensurepip` 带入的 pip、setuptools 等部署工具。官方 CycloneDX Schema 验证、同一冻结提交上的正式生成、GitHub provenance 和目标运行验收仍是独立门禁：
 
 ```bash
 RELEASE_COMMIT='replace-with-reviewed-release-commit'
 export SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$RELEASE_COMMIT")"
 python packaging/generate_sbom.py \
   --lock requirements.production.lock.txt \
-  --wheelhouse dist/wheelhouse-v0.1.1 \
-  --output dist/mcgs-full-chain-studio-0.1.1.cdx.json \
+  --wheelhouse dist/wheelhouse-v0.1.2 \
+  --output dist/mcgs-full-chain-studio-0.1.2.cdx.json \
   --application-name mcgs-full-chain-studio \
-  --application-version 0.1.1
+  --application-version 0.1.2
 ```
 
-`v0.1.1` 正式 Release 的**资产计划**是同时发布 `.tar.gz`、`.tar.gz.sha256`、`.cdx.json` 和 `.cdx.json.sha256`。这是发布门禁计划，不表示正式 SBOM、这些资产、GitHub Release 或目标 Linux 验证已经完成；正式资产必须在同一冻结提交上重新生成并逐项回读。离线 Wheelhouse 仍是单独的受信部署输入，不因存在 SBOM 而自动获得真实性。
+`v0.1.2` 正式 Release 的**资产计划**是同时发布 `.tar.gz`、`.tar.gz.sha256`、`.cdx.json` 和 `.cdx.json.sha256`。这是发布门禁计划，不表示正式 SBOM、这些资产、GitHub Release 或目标 Linux 验证已经完成；正式资产必须在同一冻结提交上重新生成并逐项回读。离线 Wheelhouse 仍是单独的受信部署输入，不因存在 SBOM 而自动获得真实性。
 
-## v0.1.1 部署合同摘要
+## v0.1.2 部署合同摘要
 
 - `--archive-sha256` 与 `PROTOCOL_STUDIO_WHEELHOUSE` 都是必填项；生产依赖只从 root-owned 离线 Wheelhouse 按 `requirements.production.lock.txt` 和哈希安装。
 - 生产 EnvironmentFile 禁止出现 `PROTOCOL_STUDIO_RESOURCES_ROOT`（空值也拒绝），强制协议库、地址与导出模板来自已纳入 Manifest 的 Release 内置 `resources/protocol`；该 override 只保留给非生产开发场景。
-- 部署、回滚、恢复脚本及其 Python/打包 helper 必须作为同一 `v0.1.1` 控制包，从 root-owned、父目录链不可被 group/other 写入的位置执行，不能混用版本或直接从普通用户可写的 checkout 执行。
+- 部署、回滚、恢复脚本及其 Python/打包 helper 必须作为同一 `v0.1.2` 控制包，从 root-owned、父目录链不可被 group/other 写入的位置执行，不能混用版本或直接从普通用户可写的 checkout 执行。
 - `run_with_env.py` 在 POSIX `exec` 前关闭全部继承的 `fd > 2`；回滚与恢复 Shell 在长期 canary 启动前还会显式关闭 `fd 8/9`。这属于分层隔离合同，Windows 静态/单测结果不能替代 Linux `/proc/self/fd` 运行验证。
 - 部署、回滚、恢复三类事务中，modern release-local 运行时的每个 local/public 健康门禁都必须取得唯一、格式正确且与记录值精确相同的 Manifest 摘要；只有已注册、早于该响应头的 legacy baseline 使用 availability-only 检查，不能据此声明 release identity 或完整 provenance 通过。
 - `deploy/check-production.sh` 默认要求 `PROTOCOL_STUDIO_EXPECTED_MANIFEST_SHA256`，并对所选部署根内的外置 runtime baseline、immutable guard、完整 fingerprint、两条有序 `ExecStartPre` 以及 local/public Manifest 身份做组合校验。modern release 只有在 `installed_runtime_identity=passed` 且 local/public 两端精确匹配时才输出 `release_identity=passed`；任一输入缺失或漂移都会 fail closed。只有显式设置 `PROTOCOL_STUDIO_ALLOW_AVAILABILITY_ONLY=true` 才执行兼容性 availability-only 检查并输出 `installed_runtime_identity=not_requested` 与 `release_identity=not_requested`，且该开关不得与摘要同时设置、不得用于 modern release 的正式验收。
 - 四份部署 Shell 的每次 `curl` 都以 `--disable` 禁用 `.curlrc`，显式绕过代理，并在入口清除常见代理与 `CURL_HOME` 环境变量；这是防环境注入合同，不替代 TLS、Host、Manifest 摘要和真实 ingress 验证。
 - `--prepare-only` 是 **ephemeral dry-run**：它验证后会删除 `.incoming-*` 候选，不保留 release，也不修改 `current`、systemd、生产服务或 `shared/` 业务数据；root-only `.deploy-state` 中的锁和验证日志/证据会保留。因此正式切换可以复用同一个 release ID，但会从同一归档、摘要和 Wheelhouse 重新构建并重新验证。
-- 正式事务使用严格 schema 3 active marker：部署从 `switching`、回滚从 `rolling_back` 开始。deploy/rollback 的普通阶段切换只改 `status`，不增删顶层字段；precommit recovery 进入 `recovery_committed_pending_activation` 时，还会原子绑定 `recovery_activation_release_id` 与 `recovery_activation_runtime_mode`，随后这些字段保持不变。外置 runtime baseline 保持 schema 1，但强制包含 64 位小写 SHA-256 字段 `runtime_guard_helper_sha256`；实际执行的 helper 会被重新哈希并与该字段精确比对，缺字段的旧 schema 1 baseline 不能批准 modern restart。新发布的 deploy/rollback/recovery passed evidence 使用 schema 5，并绑定 public origin/host、EnvironmentFile、base unit、managed drop-in、两条有序 `exec_start_pre_argvs`、外置 runtime baseline/guard/fingerprint、ordinary-restart integrity gate 和最终 publication configuration gate。schema 2–4 passed record 只保留为离线审计证据：v0.1.1 仅识别并在任何 systemd 或事务状态变更前拒绝激活，不会为它们隐式生成 baseline、改写 provenance，也不能把它们作为 deploy 当前版本、显式 rollback 目标或 recovery 激活目标。独立注册的 legacy shared-runtime baseline 是另一套兼容合同，仍支持首次升级、precommit 恢复和显式 legacy 回滚。服务先持久 disable，再安装 `/run` 下 `Restart=no`、`RuntimeMaxSec=300s` 的临时 guard，stop、切换并在 disabled 状态下启动验证。`/run` guard 重启后不会保留，但 service 的 persistent-disabled 状态会保留；active marker 未处理完前仍不应重启主机。
+- 正式事务使用严格 schema 3 active marker：部署从 `switching`、回滚从 `rolling_back` 开始。deploy/rollback 的普通阶段切换只改 `status`，不增删顶层字段；precommit recovery 进入 `recovery_committed_pending_activation` 时，还会原子绑定 `recovery_activation_release_id` 与 `recovery_activation_runtime_mode`，随后这些字段保持不变。外置 runtime baseline 保持 schema 1，但强制包含 64 位小写 SHA-256 字段 `runtime_guard_helper_sha256`；实际执行的 helper 会被重新哈希并与该字段精确比对，缺字段的旧 schema 1 baseline 不能批准 modern restart。新发布的 deploy/rollback/recovery passed evidence 使用 schema 5，并绑定 public origin/host、EnvironmentFile、base unit、managed drop-in、两条有序 `exec_start_pre_argvs`、外置 runtime baseline/guard/fingerprint、ordinary-restart integrity gate 和最终 publication configuration gate。schema 2–4 passed record 只保留为离线审计证据：v0.1.2 仅识别并在任何 systemd 或事务状态变更前拒绝激活，不会为它们隐式生成 baseline、改写 provenance，也不能把它们作为 deploy 当前版本、显式 rollback 目标或 recovery 激活目标。独立注册的 legacy shared-runtime baseline 是另一套兼容合同，仍支持首次升级、precommit 恢复和显式 legacy 回滚。服务先持久 disable，再安装 `/run` 下 `Restart=no`、`RuntimeMaxSec=300s` 的临时 guard，stop、切换并在 disabled 状态下启动验证。`/run` guard 重启后不会保留，但 service 的 persistent-disabled 状态会保留；active marker 未处理完前仍不应重启主机。
 - 目标通过有 guard 的健康/来源检查并写好 pending record 后，marker 才进入 `deploy_committed_pending_activation` 或 `rollback_committed_pending_activation`。之后该目标已经逻辑承诺：脚本移除 guard、用正常重启策略重新启动，扫描全部 systemd `.wants`/`.requires` 符号链接并按 canonical target 核对，只接受唯一标准 `multi-user.target.wants` 链接；不同文件名但指向同一 unit 的 alias 也会拒绝。
 - Enablement 和最终 provenance/health 复核通过后，脚本先协调或发布 passed record，确认 final/pending 同 inode 合同、目录持久化、pending unlink 及再次持久化成功，才归档 active marker。发布中断或失败时 marker 保留；`recover-transaction.sh` 可对 pending-only、pending+final 或 final-only 状态幂等重入，不允许人工把未完成证据改写成 PASS。
 - 任一 active marker 都不能人工删除。`switching`/`rolling_back` 这类 precommit recovery 恢复 marker 中的 previous；committed recovery 只能完成已承诺 target，必要时使用 `recovery_committed_pending_activation`。失败处理必须真实回读 persistent-disabled、inactive/dead、`MainPID=0`、原进程消失和 marker 保留；未确认 fail-closed 时必须 **DO NOT REBOOT** 并转人工 systemd 恢复。

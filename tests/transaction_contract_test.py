@@ -109,6 +109,258 @@ def simple_shell_function_body(content: str, name: str) -> str:
     return match.group("body")
 
 
+def simple_shell_function_source(content: str, name: str) -> str:
+    return f"{name}() {{\n{simple_shell_function_body(content, name)}}}"
+
+
+def assert_transaction_exit_guard_ownership(
+    bash: str, contents: dict[str, str]
+) -> dict[str, object]:
+    contracts = {
+        "deploy-release.sh": {
+            "handler": "rollback_to_previous",
+            "running": "ROLLBACK_RUNNING",
+            "failure_prefix": "SWITCH FAILED:",
+            "unexpected_prefix": "deployment transaction exited unexpectedly with status",
+            "marker_status": "switching",
+        },
+        "rollback-release.sh": {
+            "handler": "restore_previous",
+            "running": "ROLLBACK_RECOVERY_RUNNING",
+            "failure_prefix": "ROLLBACK TARGET FAILED:",
+            "unexpected_prefix": "rollback transaction exited unexpectedly with status",
+            "marker_status": "rolling_back",
+        },
+    }
+    case_specs = (
+        ("explicit_fallback", 1, "explicit fallback"),
+        ("unexpected_false", 1, None),
+        ("unexpected_exit_42", 42, None),
+    )
+    expected_state = {
+        "enabled": False,
+        "active_state": "inactive",
+        "sub_state": "dead",
+        "main_pid": 0,
+    }
+    completed_cases = 0
+
+    with tempfile.TemporaryDirectory(prefix="transaction-exit-guard-") as temporary:
+        root = Path(temporary)
+        for script_index, (label, contract) in enumerate(contracts.items(), start=1):
+            content = contents[label]
+            handler = str(contract["handler"])
+            running = str(contract["running"])
+            marker_payload = (
+                json.dumps(
+                    {"schema_version": 3, "status": contract["marker_status"]},
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8")
+            handler_source = simple_shell_function_source(content, handler)
+            guard_source = simple_shell_function_source(content, "transaction_exit_guard")
+            require_in_order(
+                handler_source,
+                [
+                    f'{running}="true"',
+                    "trap - EXIT",
+                    "trap '' INT TERM HUP",
+                    "set +e",
+                ],
+                f"{label}-compensation-handler-owns-terminal-exit",
+            )
+
+            for case_index, (case_name, trigger_status, explicit_reason) in enumerate(
+                case_specs, start=1
+            ):
+                case_root = root / f"{script_index}-{case_index}-{case_name}"
+                case_root.mkdir()
+                marker = case_root / "transaction.json"
+                state = case_root / "systemd-state.json"
+                trace = case_root / "systemd-trace.txt"
+                marker.write_bytes(marker_payload)
+                explicit_command = (
+                    f'false || {handler} "explicit fallback"'
+                    if case_name == "explicit_fallback"
+                    else "false"
+                    if case_name == "unexpected_false"
+                    else "exit 42"
+                )
+                harness = f"""\
+set -Eeuo pipefail
+TRANSACTION_FILE="$1"
+SYSTEMD_STATE_FILE="$2"
+SYSTEMD_TRACE_FILE="$3"
+SERVICE="protocol-studio.service"
+SERVICE_USER="protocol-studio"
+TRANSACTION_ACTIVE="true"
+TRANSACTION_COMMITTED="false"
+{running}="false"
+
+systemctl() {{
+  case "$1" in
+    disable)
+      printf '%s\\n' "disable" >> "$SYSTEMD_TRACE_FILE"
+      printf '%s\\n' '{{"enabled":false,"active_state":"inactive","sub_state":"dead","main_pid":0}}' > "$SYSTEMD_STATE_FILE"
+      ;;
+    reset-failed)
+      printf '%s\\n' "reset-failed" >> "$SYSTEMD_TRACE_FILE"
+      ;;
+    show)
+      case "$*" in
+        *"--property=ActiveState --value"*)
+          printf '%s\\n' "show-active" >> "$SYSTEMD_TRACE_FILE"
+          printf '%s\\n' "inactive"
+          ;;
+        *"--property=SubState --value"*)
+          printf '%s\\n' "show-sub" >> "$SYSTEMD_TRACE_FILE"
+          printf '%s\\n' "dead"
+          ;;
+        *"--property=MainPID --value"*)
+          printf '%s\\n' "show-main-pid" >> "$SYSTEMD_TRACE_FILE"
+          printf '%s\\n' "0"
+          ;;
+        *)
+          return 64
+          ;;
+      esac
+      ;;
+    *)
+      return 64
+      ;;
+  esac
+}}
+
+stat() {{
+  if [[ "$#" -eq 4 && "$1" == "-c" && "$2" == "%u:%g:%a" \
+    && "$3" == "--" && "$4" == "$TRANSACTION_FILE" ]]; then
+    printf '%s\\n' "0:0:600"
+    return 0
+  fi
+  command stat "$@"
+}}
+
+fsync_systemd_enablement_state() {{ return 0; }}
+stop_service_and_verify() {{ return 0; }}
+probe_service_enablement() {{
+  SERVICE_ENABLE_STDOUT="disabled"
+  SERVICE_ENABLE_EXIT="1"
+}}
+acl_is_minimal() {{ return 0; }}
+assert_service_persistently_disabled() {{
+  [[ "$(cat -- "$SYSTEMD_STATE_FILE")" == \
+    '{{"enabled":false,"active_state":"inactive","sub_state":"dead","main_pid":0}}' ]]
+}}
+cleanup_candidate() {{ return 0; }}
+
+{handler_source}
+
+{guard_source}
+
+trap transaction_exit_guard EXIT
+{explicit_command}
+"""
+                harness_path = case_root / "harness.sh"
+                harness_path.write_text(harness, encoding="utf-8", newline="\n")
+                completed = subprocess.run(
+                    [
+                        bash,
+                        harness_path.as_posix(),
+                        marker.as_posix(),
+                        state.as_posix(),
+                        trace.as_posix(),
+                    ],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                )
+                if completed.returncode != 1:
+                    raise AssertionError(
+                        f"{label}/{case_name}: compensation must terminate with status 1, "
+                        f"got {completed.returncode}"
+                    )
+                if completed.stdout:
+                    raise AssertionError(
+                        f"{label}/{case_name}: compensation leaked stdout: "
+                        f"{completed.stdout!r}"
+                    )
+                stderr = completed.stderr
+                expected_reason = (
+                    explicit_reason
+                    if explicit_reason is not None
+                    else f"{contract['unexpected_prefix']} {trigger_status}"
+                )
+                message_counts = {
+                    "failure_prefix": stderr.count(str(contract["failure_prefix"])),
+                    "reason": stderr.count(expected_reason),
+                    "confirmed": stderr.count("FAIL-CLOSED CONFIRMED:"),
+                    "not_confirmed": stderr.count(
+                        "CRITICAL: FAIL-CLOSED NOT CONFIRMED"
+                    ),
+                    "recursive": stderr.count("recursive transaction failure"),
+                    "do_not_reboot": stderr.count("DO NOT REBOOT"),
+                }
+                expected_counts = {
+                    "failure_prefix": 1,
+                    "reason": 1,
+                    "confirmed": 1,
+                    "not_confirmed": 0,
+                    "recursive": 0,
+                    "do_not_reboot": 0,
+                }
+                if message_counts != expected_counts:
+                    raise AssertionError(
+                        f"{label}/{case_name}: contradictory compensation messages: "
+                        f"counts={message_counts!r} stderr={stderr!r}"
+                    )
+                if marker.read_bytes() != marker_payload:
+                    raise AssertionError(
+                        f"{label}/{case_name}: active transaction marker was modified"
+                    )
+                systemd_state = json.loads(state.read_text(encoding="utf-8"))
+                if (
+                    type(systemd_state.get("enabled")) is not bool
+                    or type(systemd_state.get("active_state")) is not str
+                    or type(systemd_state.get("sub_state")) is not str
+                    or type(systemd_state.get("main_pid")) is not int
+                    or systemd_state != expected_state
+                ):
+                    raise AssertionError(
+                        f"{label}/{case_name}: fail-closed systemd state drifted: "
+                        f"{systemd_state!r}"
+                    )
+                trace_lines = trace.read_text(encoding="utf-8").splitlines()
+                expected_trace_counts = {
+                    "disable": 1,
+                    "reset-failed": 1,
+                    "show-active": 1,
+                    "show-sub": 1,
+                    "show-main-pid": 2,
+                }
+                trace_counts = {
+                    name: trace_lines.count(name) for name in expected_trace_counts
+                }
+                if trace_counts != expected_trace_counts:
+                    raise AssertionError(
+                        f"{label}/{case_name}: systemd compensation trace drifted: "
+                        f"{trace_counts!r}"
+                    )
+                completed_cases += 1
+
+    return {
+        "scripts": len(contracts),
+        "cases": completed_cases,
+        "trigger_statuses": [spec[1] for spec in case_specs],
+        "terminal_status": 1,
+        "marker_retained": True,
+        "systemd_fail_closed_state": expected_state,
+        "mutually_exclusive_verdict": True,
+    }
+
+
 def content_after(content: str, fragment: str, label: str) -> str:
     position = content.find(fragment)
     if position < 0:
@@ -1674,6 +1926,7 @@ def main() -> int:
         raise AssertionError("bash is required for transaction contract tests")
     contents = {path.name: path.read_text(encoding="utf-8") for path in SHELL_SCRIPTS}
 
+    exit_guard_contract = assert_transaction_exit_guard_ownership(bash, contents)
     runtime_schema = assert_runtime_fingerprint_schema()
     publication_sources: dict[str, str] = {}
     enablement_collectors: dict[str, str] = {}
@@ -1799,8 +2052,28 @@ def main() -> int:
     report = {
         "status": "passed",
         "suite": "release_transaction_contract",
-        "scope": "static shell contracts plus isolated marker and publication unit probes",
+        "scope": (
+            "static shell contracts plus isolated exit-guard, marker, "
+            "and publication unit probes"
+        ),
         "checks": {
+            "transaction_exit_guard_scripts": exit_guard_contract["scripts"],
+            "transaction_exit_guard_dynamic_cases": exit_guard_contract["cases"],
+            "transaction_exit_guard_trigger_statuses": exit_guard_contract[
+                "trigger_statuses"
+            ],
+            "transaction_exit_guard_terminal_status": exit_guard_contract[
+                "terminal_status"
+            ],
+            "transaction_exit_guard_marker_retained": exit_guard_contract[
+                "marker_retained"
+            ],
+            "transaction_exit_guard_systemd_fail_closed_state": exit_guard_contract[
+                "systemd_fail_closed_state"
+            ],
+            "transaction_exit_guard_mutually_exclusive_verdict": exit_guard_contract[
+                "mutually_exclusive_verdict"
+            ],
             "runtime_fingerprint_schema": runtime_schema,
             "runtime_helper_baseline_binding": True,
             "atomic_probe_script_count": len(contents),

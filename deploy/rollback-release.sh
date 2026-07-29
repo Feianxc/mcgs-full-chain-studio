@@ -2239,6 +2239,9 @@ restore_previous() {
     exit 1
   fi
   ROLLBACK_RECOVERY_RUNNING="true"
+  # This compensation handler owns the terminal path after it starts.  Explicit
+  # `command || restore_previous` calls must not re-enter it via EXIT.
+  trap - EXIT
   trap '' INT TERM HUP
   set +e
   printf 'ROLLBACK TARGET FAILED: %s\n' "$reason" >&2
