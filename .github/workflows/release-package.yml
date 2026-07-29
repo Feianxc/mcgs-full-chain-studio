@@ -4,82 +4,606 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Version stored in release-manifest.json
-        required: true
-        type: string
 
 permissions:
   contents: read
-  id-token: write
-  attestations: write
 
 jobs:
-  package:
+  test:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PIP_NO_CACHE_DIR: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: "3.12"
+          python-version: "3.11.6"
+
+      - name: Bind release to a mainline version tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$REF_TYPE" == "tag" ]]
+          [[ "$REF_NAME" == v* ]]
+          VERSION="${REF_NAME#v}"
+          [[ "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          [[ "$(python -I -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')" == "$VERSION" ]]
+          RELEASE_COMMIT="$(git rev-parse --verify "${GITHUB_SHA}^{commit}")"
+          [[ "$(git rev-parse --verify HEAD^{commit})" == "$RELEASE_COMMIT" ]]
+          git fetch --no-tags --force origin \
+            refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
 
-      - name: Install test dependencies
+      - name: Install exact production lock and constrained test dependencies
+        id: runtime
         run: |
+          set -Eeuo pipefail
+          PRODUCTION_LOCK="$GITHUB_WORKSPACE/requirements.production.lock.txt"
+          PRODUCTION_CONSTRAINTS="$RUNNER_TEMP/production.constraints.txt"
+          PRODUCTION_VERIFIER="$RUNNER_TEMP/verify-production-runtime.py"
+          PRODUCTION_BEFORE="$RUNNER_TEMP/production-before.json"
+          PRODUCTION_AFTER_DEV="$RUNNER_TEMP/production-after-dev.json"
+          PRODUCTION_AFTER_CHECK="$RUNNER_TEMP/production-after-check.json"
+          cat > "$PRODUCTION_VERIFIER" <<'PY'
+          from __future__ import annotations
+
+          import argparse
+          import hashlib
+          import json
+          import re
+          import sys
+          import sysconfig
+          from importlib import metadata
+          from pathlib import Path
+
+
+          LOCK_PATTERN = re.compile(
+              r"(?P<name>[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?)"
+              r"==(?P<version>[^\s]+)\s+--hash=sha256:[0-9a-f]{64}\Z"
+          )
+
+
+          def canonical_name(value: str) -> str:
+              return re.sub(r"[-_.]+", "-", value).lower()
+
+
+          def read_lock(path: Path, expected_count: int) -> dict[str, str]:
+              locked: dict[str, str] = {}
+              for line_number, raw in enumerate(
+                  path.read_text(encoding="utf-8").splitlines(), start=1
+              ):
+                  value = raw.strip()
+                  if not value or value.startswith("#"):
+                      continue
+                  match = LOCK_PATTERN.fullmatch(value)
+                  if match is None:
+                      raise SystemExit(f"invalid production lock line: {line_number}")
+                  name = canonical_name(match.group("name"))
+                  if name in locked:
+                      raise SystemExit(f"duplicate production lock package: {name}")
+                  locked[name] = match.group("version")
+              if len(locked) != expected_count:
+                  raise SystemExit(
+                      f"production lock package count mismatch: {len(locked)}"
+                  )
+              return locked
+
+
+          def hash_file(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  while chunk := handle.read(1024 * 1024):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+
+          def snapshot(locked: dict[str, str]) -> dict[str, object]:
+              prefix = Path(sys.prefix).resolve()
+              install_roots = sorted(
+                  {
+                      str(Path(value).resolve())
+                      for key in ("purelib", "platlib")
+                      if (value := sysconfig.get_path(key))
+                  }
+              )
+              selected: dict[str, metadata.Distribution] = {}
+              for distribution in metadata.distributions(path=install_roots):
+                  raw_name = distribution.metadata.get("Name")
+                  if not raw_name:
+                      continue
+                  name = canonical_name(raw_name)
+                  if name not in locked:
+                      continue
+                  if name in selected:
+                      raise SystemExit(f"duplicate installed production package: {name}")
+                  selected[name] = distribution
+              if set(selected) != set(locked):
+                  missing = sorted(set(locked) - set(selected))
+                  raise SystemExit(
+                      "installed production package set mismatch: " + ",".join(missing)
+                  )
+
+              packages: list[dict[str, object]] = []
+              for name in sorted(locked):
+                  distribution = selected[name]
+                  expected_version = locked[name]
+                  if distribution.version != expected_version:
+                      raise SystemExit(f"production package version mismatch: {name}")
+                  files = distribution.files
+                  if not files:
+                      raise SystemExit(f"production package has no RECORD files: {name}")
+                  records: list[tuple[str, str]] = []
+                  seen_paths: set[str] = set()
+                  for item in sorted(files, key=lambda value: str(value)):
+                      installed = Path(distribution.locate_file(item))
+                      if installed.is_symlink() or not installed.is_file():
+                          raise SystemExit(f"production package file is not regular: {name}")
+                      resolved = installed.resolve()
+                      try:
+                          relative = resolved.relative_to(prefix).as_posix()
+                      except ValueError as exc:
+                          raise SystemExit(
+                              f"production package file escaped Python prefix: {name}"
+                          ) from exc
+                      if relative in seen_paths:
+                          raise SystemExit(f"duplicate production package file: {name}")
+                      seen_paths.add(relative)
+                      records.append((relative, hash_file(resolved)))
+                  aggregate = hashlib.sha256()
+                  for relative, digest in records:
+                      aggregate.update(
+                          json.dumps(
+                              [relative, digest], separators=(",", ":")
+                          ).encode("utf-8")
+                          + b"\n"
+                      )
+                  packages.append(
+                      {
+                          "name": name,
+                          "version": distribution.version,
+                          "file_count": len(records),
+                          "files_sha256": aggregate.hexdigest(),
+                      }
+                  )
+              return {"schema_version": 1, "packages": packages}
+
+
+          def main() -> int:
+              parser = argparse.ArgumentParser()
+              parser.add_argument("--lock", type=Path, required=True)
+              parser.add_argument("--output", type=Path, required=True)
+              parser.add_argument("--constraints", type=Path)
+              parser.add_argument("--expected-count", type=int, required=True)
+              args = parser.parse_args()
+              locked = read_lock(args.lock, args.expected_count)
+              document = snapshot(locked)
+              args.output.write_text(
+                  json.dumps(document, sort_keys=True, separators=(",", ":")) + "\n",
+                  encoding="utf-8",
+              )
+              if args.constraints is not None:
+                  args.constraints.write_text(
+                      "".join(f"{name}=={locked[name]}\n" for name in sorted(locked)),
+                      encoding="utf-8",
+                  )
+              print(f"production_runtime_fingerprint_ok count={len(locked)}")
+              return 0
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PY
+          PRODUCTION_VERIFIER_SHA256="$(sha256sum "$PRODUCTION_VERIFIER" | awk '{print $1}')"
+          [[ "$PRODUCTION_VERIFIER_SHA256" =~ ^[0-9a-f]{64}$ ]]
           python -m pip install --upgrade pip
-          python -m pip install --requirement requirements.dev.txt
+          python -m pip install \
+            --no-cache-dir \
+            --only-binary=:all: \
+            --require-hashes \
+            --requirement requirements.production.lock.txt
           python -m pip check
+          python -I -S "$PRODUCTION_VERIFIER" \
+            --lock "$PRODUCTION_LOCK" \
+            --output "$PRODUCTION_BEFORE" \
+            --constraints "$PRODUCTION_CONSTRAINTS" \
+            --expected-count 17
+          PRODUCTION_BEFORE_SHA256="$(sha256sum "$PRODUCTION_BEFORE" | awk '{print $1}')"
+          PRODUCTION_CONSTRAINTS_SHA256="$(sha256sum "$PRODUCTION_CONSTRAINTS" | awk '{print $1}')"
+          [[ "$PRODUCTION_BEFORE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$PRODUCTION_CONSTRAINTS_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          python -m pip install \
+            --no-cache-dir \
+            --only-binary=:all: \
+            --constraint "$PRODUCTION_CONSTRAINTS" \
+            --requirement requirements.dev.txt
+          printf '%s  %s\n' "$PRODUCTION_VERIFIER_SHA256" "$PRODUCTION_VERIFIER" \
+            | sha256sum --check -
+          printf '%s  %s\n' "$PRODUCTION_BEFORE_SHA256" "$PRODUCTION_BEFORE" \
+            | sha256sum --check -
+          printf '%s  %s\n' "$PRODUCTION_CONSTRAINTS_SHA256" "$PRODUCTION_CONSTRAINTS" \
+            | sha256sum --check -
+          python -I -S "$PRODUCTION_VERIFIER" \
+            --lock "$PRODUCTION_LOCK" \
+            --output "$PRODUCTION_AFTER_DEV" \
+            --expected-count 17
+          cmp --silent "$PRODUCTION_BEFORE" "$PRODUCTION_AFTER_DEV"
+          python -m pip check
+          printf '%s  %s\n' "$PRODUCTION_VERIFIER_SHA256" "$PRODUCTION_VERIFIER" \
+            | sha256sum --check -
+          python -I -S "$PRODUCTION_VERIFIER" \
+            --lock "$PRODUCTION_LOCK" \
+            --output "$PRODUCTION_AFTER_CHECK" \
+            --expected-count 17
+          cmp --silent "$PRODUCTION_BEFORE" "$PRODUCTION_AFTER_CHECK"
+          echo "verifier_sha256=$PRODUCTION_VERIFIER_SHA256" >> "$GITHUB_OUTPUT"
+          echo "fingerprint_sha256=$PRODUCTION_BEFORE_SHA256" >> "$GITHUB_OUTPUT"
+          echo "constraints_sha256=$PRODUCTION_CONSTRAINTS_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Run release gates
+        env:
+          PRODUCTION_VERIFIER_SHA256: ${{ steps.runtime.outputs.verifier_sha256 }}
+          PRODUCTION_FINGERPRINT_SHA256: ${{ steps.runtime.outputs.fingerprint_sha256 }}
+          PRODUCTION_CONSTRAINTS_SHA256: ${{ steps.runtime.outputs.constraints_sha256 }}
         run: |
+          set -Eeuo pipefail
+          PRODUCTION_LOCK="$GITHUB_WORKSPACE/requirements.production.lock.txt"
+          PRODUCTION_CONSTRAINTS="$RUNNER_TEMP/production.constraints.txt"
+          PRODUCTION_VERIFIER="$RUNNER_TEMP/verify-production-runtime.py"
+          PRODUCTION_BEFORE="$RUNNER_TEMP/production-before.json"
+          verify_production_runtime() {
+            local output="$1"
+            printf '%s  %s\n' "$PRODUCTION_VERIFIER_SHA256" "$PRODUCTION_VERIFIER" \
+              | sha256sum --check -
+            printf '%s  %s\n' "$PRODUCTION_FINGERPRINT_SHA256" "$PRODUCTION_BEFORE" \
+              | sha256sum --check -
+            printf '%s  %s\n' "$PRODUCTION_CONSTRAINTS_SHA256" "$PRODUCTION_CONSTRAINTS" \
+              | sha256sum --check -
+            python -I -S "$PRODUCTION_VERIFIER" \
+              --lock "$PRODUCTION_LOCK" \
+              --output "$output" \
+              --expected-count 17
+            cmp --silent "$PRODUCTION_BEFORE" "$output"
+          }
+          verify_production_runtime "$RUNNER_TEMP/production-before-tests.json"
+          python -I -S - <<'PY'
+          import ast
+          from pathlib import Path
+
+          tree = ast.parse(Path("tests/run_all.py").read_text(encoding="utf-8"))
+          values = {}
+          for node in tree.body:
+              if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                  continue
+              target = node.targets[0]
+              if isinstance(target, ast.Name) and target.id in {
+                  "JAVASCRIPT_TESTS", "PYTHON_TESTS"
+              }:
+                  values[target.id] = ast.literal_eval(node.value)
+          entries = values.get("JAVASCRIPT_TESTS", []) + values.get("PYTHON_TESTS", [])
+          if len(entries) != 24 or len(entries) != len(set(entries)):
+              raise SystemExit(f"release test entry count mismatch: {len(entries)}")
+          if not all(Path(value).is_file() for value in entries):
+              raise SystemExit("release test entry is missing")
+          print("release_test_entry_count_ok=24")
+          PY
           python scripts/validate_repository.py
           python scripts/check_public_tree.py --root .
           python scripts/run_tests.py
+          verify_production_runtime "$RUNNER_TEMP/production-after-tests.json"
 
-      - name: Resolve release version
+  package:
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PIP_NO_CACHE_DIR: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Check out clean release source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          clean: true
+
+      - name: Set up fixed packaging Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11.6"
+
+      - name: Bind package to the mainline version tag
         id: version
         env:
-          INPUT_VERSION: ${{ inputs.version }}
           REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
-          if [[ -n "$INPUT_VERSION" ]]; then
-            VERSION="$INPUT_VERSION"
-          else
-            VERSION="${REF_NAME#v}"
-          fi
+          set -Eeuo pipefail
+          [[ "$REF_TYPE" == "tag" ]]
+          [[ "$REF_NAME" == v* ]]
+          VERSION="${REF_NAME#v}"
           [[ "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]{0,63}$ ]]
+          [[ "$(python -I -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')" == "$VERSION" ]]
+          RELEASE_COMMIT="$(git rev-parse --verify "${GITHUB_SHA}^{commit}")"
+          [[ "$(git rev-parse --verify HEAD^{commit})" == "$RELEASE_COMMIT" ]]
+          git fetch --no-tags --force origin \
+            refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$RELEASE_COMMIT" origin/main
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build and verify source archive
+      - name: Confirm pristine release source
         run: |
-          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
-          python packaging/build_release.py --version "${{ steps.version.outputs.value }}"
-          python packaging/verify_release.py \
-            "dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz" \
-            --expected-version "${{ steps.version.outputs.value }}"
+          set -Eeuo pipefail
+          RELEASE_COMMIT="$(git rev-parse --verify "${GITHUB_SHA}^{commit}")"
+          [[ "$(git rev-parse --verify HEAD^{commit})" == "$RELEASE_COMMIT" ]]
+          git diff --exit-code -- .
+          git diff --cached --exit-code -- .
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
 
-      - name: Attest verified source archive
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz
+      - name: Build and verify source archive
+        id: archive
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -Eeuo pipefail
+          ASSET_DIR="$RUNNER_TEMP/release-assets"
+          ARCHIVE="$ASSET_DIR/mcgs-full-chain-studio-${RELEASE_VERSION}.tar.gz"
+          install -d -m 0700 "$ASSET_DIR"
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD^{commit})"
+          python -I packaging/build_release.py \
+            --root "$GITHUB_WORKSPACE" \
+            --version "$RELEASE_VERSION" \
+            --output-dir "$ASSET_DIR"
+          python -I packaging/verify_release.py \
+            "$ARCHIVE" \
+            --expected-version "$RELEASE_VERSION"
+          (
+            cd "$ASSET_DIR"
+            sha256sum --check \
+              "mcgs-full-chain-studio-${RELEASE_VERSION}.tar.gz.sha256"
+          )
+          ARCHIVE_SHA256="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+          [[ "$ARCHIVE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          echo "sha256=$ARCHIVE_SHA256" >> "$GITHUB_OUTPUT"
+          git diff --exit-code -- .
+          git diff --cached --exit-code -- .
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
 
-      - name: Upload verified source archive
-        uses: actions/upload-artifact@v4
+      - name: Build formal production Wheelhouse
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -Eeuo pipefail
+          ASSET_DIR="$RUNNER_TEMP/release-assets"
+          ARCHIVE="$ASSET_DIR/mcgs-full-chain-studio-${RELEASE_VERSION}.tar.gz"
+          WHEELHOUSE="$RUNNER_TEMP/wheelhouse-v${RELEASE_VERSION}"
+          install -d -m 0700 "$WHEELHOUSE"
+          [[ -z "$(find "$WHEELHOUSE" -mindepth 1 -print -quit)" ]]
+          python -I -m pip --isolated --disable-pip-version-check download \
+            --no-cache-dir \
+            --only-binary=:all: \
+            --require-hashes \
+            --requirement "$GITHUB_WORKSPACE/requirements.production.lock.txt" \
+            --dest "$WHEELHOUSE"
+          git diff --exit-code -- .
+          git diff --cached --exit-code -- .
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
+          printf '%s  %s\n' '${{ steps.archive.outputs.sha256 }}' "$ARCHIVE" \
+            | sha256sum --check -
+          python -I packaging/verify_release.py \
+            "$ARCHIVE" \
+            --expected-version "$RELEASE_VERSION"
+
+      - name: Verify exact production lock offline
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -Eeuo pipefail
+          ASSET_DIR="$RUNNER_TEMP/release-assets"
+          ARCHIVE="$ASSET_DIR/mcgs-full-chain-studio-${RELEASE_VERSION}.tar.gz"
+          WHEELHOUSE="$RUNNER_TEMP/wheelhouse-v${RELEASE_VERSION}"
+          VERIFY_ROOT="$RUNNER_TEMP/production-lock-verify"
+          VERIFY_VENV="$VERIFY_ROOT/venv"
+          VERIFY_WORK="$VERIFY_ROOT/work"
+          RELEASE_COMMIT="$(git rev-parse --verify "${GITHUB_SHA}^{commit}")"
+          [[ "$(git rev-parse --verify HEAD^{commit})" == "$RELEASE_COMMIT" ]]
+          git diff --exit-code -- .
+          git diff --cached --exit-code -- .
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
+          printf '%s  %s\n' '${{ steps.archive.outputs.sha256 }}' "$ARCHIVE" \
+            | sha256sum --check -
+          [[ ! -e "$VERIFY_ROOT" ]]
+          install -d -m 0700 "$VERIFY_ROOT" "$VERIFY_WORK"
+          python -I -m venv "$VERIFY_VENV"
+          (
+            cd "$VERIFY_WORK"
+            "$VERIFY_VENV/bin/python" -I -m pip \
+              --isolated \
+              --disable-pip-version-check \
+              install \
+              --no-index \
+              --no-cache-dir \
+              --find-links "$WHEELHOUSE" \
+              --only-binary=:all: \
+              --require-hashes \
+              --requirement "$GITHUB_WORKSPACE/requirements.production.lock.txt"
+            "$VERIFY_VENV/bin/python" -I -m pip \
+              --isolated \
+              --disable-pip-version-check \
+              check
+            "$VERIFY_VENV/bin/python" -I - <<'PY'
+          import fastapi
+          import jinja2
+          import openpyxl
+
+          print("production_dependency_smoke_ok")
+          PY
+          )
+          [[ "$(git rev-parse --verify HEAD^{commit})" == "$RELEASE_COMMIT" ]]
+          git diff --exit-code -- .
+          git diff --cached --exit-code -- .
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
+          printf '%s  %s\n' '${{ steps.archive.outputs.sha256 }}' "$ARCHIVE" \
+            | sha256sum --check -
+          (
+            cd "$ASSET_DIR"
+            sha256sum --check \
+              "mcgs-full-chain-studio-${RELEASE_VERSION}.tar.gz.sha256"
+          )
+          python -I packaging/verify_release.py \
+            "$ARCHIVE" \
+            --expected-version "$RELEASE_VERSION"
+
+      - name: Generate and validate CycloneDX SBOM
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -Eeuo pipefail
+          ASSET_DIR="$RUNNER_TEMP/release-assets"
+          ARCHIVE="$ASSET_DIR/mcgs-full-chain-studio-${RELEASE_VERSION}.tar.gz"
+          WHEELHOUSE="$RUNNER_TEMP/wheelhouse-v${RELEASE_VERSION}"
+          SBOM_PATH="$ASSET_DIR/mcgs-full-chain-studio-${RELEASE_VERSION}.cdx.json"
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD^{commit})"
+          python -I packaging/generate_sbom.py \
+            --root "$GITHUB_WORKSPACE" \
+            --lock "$GITHUB_WORKSPACE/requirements.production.lock.txt" \
+            --wheelhouse "$WHEELHOUSE" \
+            --output "$SBOM_PATH" \
+            --application-name mcgs-full-chain-studio \
+            --application-version "$RELEASE_VERSION"
+          python -I - "$SBOM_PATH" \
+            "$GITHUB_WORKSPACE/requirements.production.lock.txt" \
+            "$RELEASE_VERSION" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          sbom_path = Path(sys.argv[1])
+          lock_path = Path(sys.argv[2])
+          expected_version = sys.argv[3]
+          document = json.loads(sbom_path.read_text(encoding="utf-8"))
+          expected_keys = {
+              "bomFormat", "specVersion", "version", "metadata",
+              "components", "dependencies",
+          }
+          if not isinstance(document, dict) or set(document) != expected_keys:
+              raise SystemExit("CycloneDX root contract is invalid")
+          if document["bomFormat"] != "CycloneDX" or document["specVersion"] != "1.5":
+              raise SystemExit("CycloneDX identity is invalid")
+          if type(document["version"]) is not int or document["version"] != 1:
+              raise SystemExit("CycloneDX document version is invalid")
+          components = document["components"]
+          dependencies = document["dependencies"]
+          metadata = document["metadata"]
+          lock_count = sum(
+              1
+              for line in lock_path.read_text(encoding="utf-8").splitlines()
+              if re.match(r"^[A-Za-z0-9_.-]+==[^\s]+\s+--hash=sha256:[0-9a-f]{64}$", line)
+          )
+          if lock_count == 0 or not isinstance(components, list) or len(components) != lock_count:
+              raise SystemExit("CycloneDX components do not match the production lock")
+          if not isinstance(dependencies, list) or len(dependencies) != lock_count + 1:
+              raise SystemExit("CycloneDX dependency graph shape is invalid")
+          if not isinstance(metadata, dict):
+              raise SystemExit("CycloneDX metadata must be an object")
+          application = metadata.get("component")
+          if (
+              not isinstance(application, dict)
+              or application.get("type") != "application"
+              or application.get("name") != "mcgs-full-chain-studio"
+              or application.get("version") != expected_version
+          ):
+              raise SystemExit("CycloneDX application identity is invalid")
+          for component in components:
+              if not isinstance(component, dict):
+                  raise SystemExit("CycloneDX component must be an object")
+              hashes = component.get("hashes")
+              if (
+                  not isinstance(hashes, list)
+                  or len(hashes) != 1
+                  or not isinstance(hashes[0], dict)
+                  or hashes[0].get("alg") != "SHA-256"
+                  or not re.fullmatch(r"[0-9a-f]{64}", str(hashes[0].get("content", "")))
+              ):
+                  raise SystemExit("CycloneDX component hash is invalid")
+          PY
+          (
+            cd "$ASSET_DIR"
+            sha256sum --check "$(basename "$SBOM_PATH").sha256"
+          )
+          printf '%s  %s\n' '${{ steps.archive.outputs.sha256 }}' "$ARCHIVE" \
+            | sha256sum --check -
+          python -I packaging/verify_release.py \
+            "$ARCHIVE" \
+            --expected-version "$RELEASE_VERSION"
+          git diff --exit-code -- .
+          git diff --cached --exit-code -- .
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]]
+
+      - name: Upload verified release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: mcgs-full-chain-studio-${{ steps.version.outputs.value }}
           if-no-files-found: error
           retention-days: 14
           path: |
-            dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz
-            dist/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz.sha256
+            ${{ runner.temp }}/release-assets/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz
+            ${{ runner.temp }}/release-assets/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.tar.gz.sha256
+            ${{ runner.temp }}/release-assets/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.cdx.json
+            ${{ runner.temp }}/release-assets/mcgs-full-chain-studio-${{ steps.version.outputs.value }}.cdx.json.sha256
+
+  attest:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mcgs-full-chain-studio-${{ needs.package.outputs.version }}
+          path: dist
+
+      - name: Revalidate release asset checksums
+        run: |
+          set -Eeuo pipefail
+          cd dist
+          sha256sum --check \
+            "mcgs-full-chain-studio-${{ needs.package.outputs.version }}.tar.gz.sha256"
+          sha256sum --check \
+            "mcgs-full-chain-studio-${{ needs.package.outputs.version }}.cdx.json.sha256"
+
+      - name: Attest verified release assets
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: |
+            dist/mcgs-full-chain-studio-${{ needs.package.outputs.version }}.tar.gz
+            dist/mcgs-full-chain-studio-${{ needs.package.outputs.version }}.tar.gz.sha256
+            dist/mcgs-full-chain-studio-${{ needs.package.outputs.version }}.cdx.json
+            dist/mcgs-full-chain-studio-${{ needs.package.outputs.version }}.cdx.json.sha256
