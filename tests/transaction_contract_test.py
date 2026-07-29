@@ -109,6 +109,635 @@ def simple_shell_function_body(content: str, name: str) -> str:
     return match.group("body")
 
 
+def simple_shell_function_source(content: str, name: str) -> str:
+    return f"{name}() {{\n{simple_shell_function_body(content, name)}}}"
+
+
+def assert_transaction_exit_guard_ownership(
+    bash: str, contents: dict[str, str]
+) -> dict[str, object]:
+    contracts = {
+        "deploy-release.sh": {
+            "handler": "rollback_to_previous",
+            "running": "ROLLBACK_RUNNING",
+            "failure_prefix": "SWITCH FAILED:",
+            "unexpected_prefix": "deployment transaction exited unexpectedly with status",
+            "marker_status": "switching",
+        },
+        "rollback-release.sh": {
+            "handler": "restore_previous",
+            "running": "ROLLBACK_RECOVERY_RUNNING",
+            "failure_prefix": "ROLLBACK TARGET FAILED:",
+            "unexpected_prefix": "rollback transaction exited unexpectedly with status",
+            "marker_status": "rolling_back",
+        },
+    }
+    baseline_case_specs = (
+        {
+            "name": "explicit_fallback",
+            "trigger_status": 1,
+            "explicit_reason": "explicit fallback",
+            "entry": "explicit",
+        },
+        {
+            "name": "unexpected_false",
+            "trigger_status": 1,
+            "explicit_reason": None,
+            "entry": "false",
+        },
+        {
+            "name": "unexpected_exit_42",
+            "trigger_status": 42,
+            "explicit_reason": None,
+            "entry": "exit_42",
+        },
+    )
+    signal_case_specs = (
+        ("TERM", "signal_mask", 130, None),
+        ("INT", "running_assignment", 1, "signal INT before running_assignment"),
+        ("HUP", "exit_trap_clear", 1, "signal HUP before exit_trap_clear"),
+        ("TERM", "errexit_disable", 1, "signal TERM before errexit_disable"),
+        (
+            "INT",
+            "first_systemctl_show",
+            1,
+            "signal INT before first_systemctl_show",
+        ),
+    )
+    guard_signal_case_specs = (
+        ("TERM", "false"),
+        ("HUP", "exit_42"),
+    )
+    failure_modes = (
+        "disable",
+        "fsync_enablement",
+        "stop_verify",
+        "reset_failed",
+        "enablement_probe",
+        "state_readback",
+        "marker_acl",
+        "persistent_assertion",
+    )
+    expected_state = {
+        "enabled": False,
+        "active_state": "inactive",
+        "sub_state": "dead",
+        "main_pid": 0,
+    }
+    completed_cases = 0
+    completed_signal_cases = 0
+    completed_guard_signal_cases = 0
+    completed_failure_cases = 0
+    signal_delivery_mode = "trap_state_probe" if os.name == "nt" else "real_signal"
+
+    with tempfile.TemporaryDirectory(prefix="transaction-exit-guard-") as temporary:
+        root = Path(temporary)
+        for script_index, (label, contract) in enumerate(contracts.items(), start=1):
+            content = contents[label]
+            handler = str(contract["handler"])
+            running = str(contract["running"])
+            marker_payload = (
+                json.dumps(
+                    {"schema_version": 3, "status": contract["marker_status"]},
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8")
+            handler_source = simple_shell_function_source(content, handler)
+            guard_source = simple_shell_function_source(content, "transaction_exit_guard")
+            signal_guard_source = simple_shell_function_source(
+                content, "transaction_signal_guard"
+            )
+            signal_trap_source = "trap transaction_signal_guard INT TERM HUP"
+            first_systemctl_show = next(
+                line.strip()
+                for line in handler_source.splitlines()
+                if line.lstrip().startswith(
+                    'original_pid="$(systemctl show "$SERVICE" '
+                )
+            )
+            require_in_order(
+                handler_source,
+                [
+                    "trap '' INT TERM HUP",
+                    f'{running}="true"',
+                    "trap - EXIT",
+                    "set +e",
+                ],
+                f"{label}-compensation-handler-blocks-signals-before-owning-exit",
+            )
+            require_in_order(
+                guard_source,
+                [
+                    'local status="${1:-$?}"',
+                    "trap '' INT TERM HUP",
+                    "trap - EXIT",
+                ],
+                f"{label}-exit-guard-blocks-signals-before-compensation",
+            )
+            require_in_order(
+                signal_guard_source,
+                ["trap '' INT TERM HUP", "transaction_exit_guard 130"],
+                f"{label}-signal-guard-blocks-signals-before-explicit-exit-guard",
+            )
+            if content.count(signal_trap_source) != 1:
+                raise AssertionError(
+                    f"{label}: signal guard trap must be installed exactly once"
+                )
+
+            injection_targets = {
+                "signal_mask": "trap '' INT TERM HUP",
+                "running_assignment": f'{running}="true"',
+                "exit_trap_clear": "trap - EXIT",
+                "errexit_disable": "set +e",
+                "first_systemctl_show": first_systemctl_show.replace(
+                    "2>/dev/null", "2> /dev/null"
+                ),
+            }
+            case_specs = [
+                {
+                    **spec,
+                    "failure_mode": "none",
+                    "inject_signal": "none",
+                    "inject_step": "none",
+                    "inject_before": "none",
+                    "expect_confirmed": True,
+                }
+                for spec in baseline_case_specs
+            ]
+            case_specs.extend(
+                {
+                    "name": f"signal_{signal.lower()}_before_{step}",
+                    "trigger_status": trigger_status,
+                    "explicit_reason": explicit_reason,
+                    "entry": "explicit",
+                    "failure_mode": "none",
+                    "inject_signal": signal,
+                    "inject_step": step,
+                    "inject_before": injection_targets[step],
+                    "expect_confirmed": True,
+                }
+                for signal, step, trigger_status, explicit_reason in signal_case_specs
+            )
+            case_specs.extend(
+                {
+                    "name": f"unexpected_{entry}_signal_{signal.lower()}_in_guard",
+                    "trigger_status": 130,
+                    "explicit_reason": None,
+                    "entry": entry,
+                    "failure_mode": "none",
+                    "inject_signal": signal,
+                    "inject_step": "guard_signal_mask",
+                    "inject_before": "trap '' INT TERM HUP",
+                    "expect_confirmed": True,
+                }
+                for signal, entry in guard_signal_case_specs
+            )
+            case_specs.extend(
+                {
+                    "name": f"failure_{failure_mode}",
+                    "trigger_status": 1,
+                    "explicit_reason": f"failure branch {failure_mode}",
+                    "entry": "explicit",
+                    "failure_mode": failure_mode,
+                    "inject_signal": "none",
+                    "inject_step": "none",
+                    "inject_before": "none",
+                    "expect_confirmed": False,
+                }
+                for failure_mode in failure_modes
+            )
+
+            for case_index, case_spec in enumerate(case_specs, start=1):
+                case_name = str(case_spec["name"])
+                trigger_status = int(case_spec["trigger_status"])
+                explicit_reason = case_spec["explicit_reason"]
+                failure_mode = str(case_spec["failure_mode"])
+                inject_signal = str(case_spec["inject_signal"])
+                inject_step = str(case_spec["inject_step"])
+                inject_before = str(case_spec["inject_before"])
+                expect_confirmed = bool(case_spec["expect_confirmed"])
+                case_root = root / f"{script_index}-{case_index}-{case_name}"
+                case_root.mkdir()
+                marker = case_root / "transaction.json"
+                state = case_root / "systemd-state.json"
+                trace = case_root / "systemd-trace.txt"
+                signal_trace = case_root / "signal-trace.txt"
+                marker.write_bytes(marker_payload)
+                entry = str(case_spec["entry"])
+                if entry == "explicit":
+                    explicit_command = f'false || {handler} "{explicit_reason}"'
+                elif entry == "false":
+                    explicit_command = "false"
+                elif entry == "exit_42":
+                    explicit_command = "exit 42"
+                else:
+                    raise AssertionError(f"unsupported exit-guard test entry: {entry}")
+                harness = f"""\
+set -Eeuo pipefail
+TRANSACTION_FILE="$1"
+SYSTEMD_STATE_FILE="$2"
+SYSTEMD_TRACE_FILE="$3"
+FAILURE_MODE="$4"
+INJECT_SIGNAL="$5"
+INJECT_STEP="$6"
+SIGNAL_TRACE_FILE="$7"
+SIGNAL_DELIVERY_MODE="$8"
+SERVICE="protocol-studio.service"
+SERVICE_USER="protocol-studio"
+TRANSACTION_ACTIVE="true"
+TRANSACTION_COMMITTED="false"
+{running}="false"
+DEBUG_FIRED="false"
+INJECT_BEFORE="none"
+
+case "$INJECT_STEP" in
+  guard_signal_mask) INJECT_BEFORE="trap '' INT TERM HUP" ;;
+  signal_mask) INJECT_BEFORE="trap '' INT TERM HUP" ;;
+  running_assignment) INJECT_BEFORE='{running}="true"' ;;
+  exit_trap_clear) INJECT_BEFORE="trap - EXIT" ;;
+  errexit_disable) INJECT_BEFORE="set +e" ;;
+  first_systemctl_show)
+    # BASH_COMMAND renders the redirection with a separating space.
+    INJECT_BEFORE='{injection_targets["first_systemctl_show"]}'
+    ;;
+  none) ;;
+  *) exit 64 ;;
+esac
+
+trap() {{
+  local caller="${{FUNCNAME[1]:-}}"
+  if [[ "$DEBUG_FIRED" == "false" \
+    && "$INJECT_STEP" == "guard_signal_mask" \
+    && "$caller" == "transaction_exit_guard" \
+    && "${{1-}}" == "" && "${{2-}}" == "INT" \
+    && "${{3-}}" == "TERM" && "${{4-}}" == "HUP" ]]; then
+    DEBUG_FIRED="true"
+    printf '%s\t%s\t%s\n' \
+      "$INJECT_SIGNAL" "$INJECT_BEFORE" "$SIGNAL_DELIVERY_MODE" \
+      > "$SIGNAL_TRACE_FILE"
+    if [[ "$SIGNAL_DELIVERY_MODE" == "real_signal" ]]; then
+      kill -s "$INJECT_SIGNAL" "$BASHPID"
+    elif [[ "$SIGNAL_DELIVERY_MODE" == "trap_state_probe" ]]; then
+      transaction_signal_guard
+    else
+      exit 64
+    fi
+  fi
+  builtin trap "$@"
+}}
+
+debug_injector() {{
+  local pending_command="$BASH_COMMAND"
+  if [[ "$DEBUG_FIRED" == "false" && "$pending_command" == "$INJECT_BEFORE" ]]; then
+    DEBUG_FIRED="true"
+    printf '%s\\t%s\\t%s\\n' \
+      "$INJECT_SIGNAL" "$pending_command" "$SIGNAL_DELIVERY_MODE" \
+      > "$SIGNAL_TRACE_FILE"
+    if [[ "$SIGNAL_DELIVERY_MODE" == "real_signal" ]]; then
+      kill -s "$INJECT_SIGNAL" "$BASHPID"
+    elif [[ "$SIGNAL_DELIVERY_MODE" == "trap_state_probe" ]]; then
+      if [[ "$INJECT_STEP" == "guard_signal_mask" \
+        || "$INJECT_STEP" == "signal_mask" ]]; then
+        transaction_signal_guard
+      fi
+      local trap_state
+      trap_state="$(trap -p "$INJECT_SIGNAL")"
+      if [[ "$trap_state" != "trap -- '' SIG$INJECT_SIGNAL" ]]; then
+        printf '%s\\t%s\\n' "PROBE_FAILURE" "$trap_state" >> "$SIGNAL_TRACE_FILE"
+        exit 70
+      fi
+    else
+      exit 64
+    fi
+  fi
+}}
+
+write_systemd_state() {{
+  printf 'enabled=%s\\nactive_state=%s\\nsub_state=%s\\nmain_pid=%s\\n' \
+    "$1" "$2" "$3" "$4" > "$SYSTEMD_STATE_FILE"
+}}
+
+read_systemd_state() {{
+  local requested="$1"
+  local key
+  local value
+  while IFS='=' read -r key value; do
+    if [[ "$key" == "$requested" ]]; then
+      printf '%s\\n' "$value"
+      return 0
+    fi
+  done < "$SYSTEMD_STATE_FILE"
+  return 1
+}}
+
+systemctl() {{
+  local enabled
+  local active_state
+  local sub_state
+  local main_pid
+  case "$1" in
+    disable)
+      printf '%s\\n' "disable" >> "$SYSTEMD_TRACE_FILE"
+      if [[ "$FAILURE_MODE" == "disable" ]]; then
+        return 1
+      fi
+      active_state="$(read_systemd_state active_state)"
+      sub_state="$(read_systemd_state sub_state)"
+      main_pid="$(read_systemd_state main_pid)"
+      write_systemd_state false "$active_state" "$sub_state" "$main_pid"
+      ;;
+    reset-failed)
+      printf '%s\\n' "reset-failed" >> "$SYSTEMD_TRACE_FILE"
+      [[ "$FAILURE_MODE" != "reset_failed" ]]
+      ;;
+    show)
+      if [[ "$FAILURE_MODE" == "state_readback" \
+        && "$*" == *"--property=ActiveState --value"* ]]; then
+        enabled="$(read_systemd_state enabled)"
+        write_systemd_state "$enabled" active running 99999999
+      fi
+      case "$*" in
+        *"--property=ActiveState --value"*)
+          printf '%s\\n' "show-active" >> "$SYSTEMD_TRACE_FILE"
+          read_systemd_state active_state
+          ;;
+        *"--property=SubState --value"*)
+          printf '%s\\n' "show-sub" >> "$SYSTEMD_TRACE_FILE"
+          read_systemd_state sub_state
+          ;;
+        *"--property=MainPID --value"*)
+          printf '%s\\n' "show-main-pid" >> "$SYSTEMD_TRACE_FILE"
+          read_systemd_state main_pid
+          ;;
+        *)
+          return 64
+          ;;
+      esac
+      ;;
+    *)
+      return 64
+      ;;
+  esac
+}}
+
+stat() {{
+  if [[ "$#" -eq 4 && "$1" == "-c" && "$2" == "%u:%g:%a" \
+    && "$3" == "--" && "$4" == "$TRANSACTION_FILE" ]]; then
+    printf '%s\\n' "0:0:600"
+    return 0
+  fi
+  command stat "$@"
+}}
+
+fsync_systemd_enablement_state() {{
+  printf '%s\\n' "fsync-enablement" >> "$SYSTEMD_TRACE_FILE"
+  [[ "$FAILURE_MODE" != "fsync_enablement" ]]
+}}
+stop_service_and_verify() {{
+  local enabled
+  printf '%s\\n' "stop-verify" >> "$SYSTEMD_TRACE_FILE"
+  if [[ "$FAILURE_MODE" == "stop_verify" ]]; then
+    return 1
+  fi
+  enabled="$(read_systemd_state enabled)"
+  write_systemd_state "$enabled" inactive dead 0
+}}
+probe_service_enablement() {{
+  printf '%s\\n' "probe-enablement" >> "$SYSTEMD_TRACE_FILE"
+  if [[ "$FAILURE_MODE" == "enablement_probe" || "$FAILURE_MODE" == "disable" ]]; then
+    SERVICE_ENABLE_STDOUT="enabled"
+    SERVICE_ENABLE_EXIT="0"
+  else
+    SERVICE_ENABLE_STDOUT="disabled"
+    SERVICE_ENABLE_EXIT="1"
+  fi
+}}
+acl_is_minimal() {{
+  printf '%s\\n' "acl-minimal" >> "$SYSTEMD_TRACE_FILE"
+  [[ "$FAILURE_MODE" != "marker_acl" ]]
+}}
+assert_service_persistently_disabled() {{
+  printf '%s\\n' "assert-persistent-disabled" >> "$SYSTEMD_TRACE_FILE"
+  if [[ "$FAILURE_MODE" == "persistent_assertion" ]]; then
+    return 1
+  fi
+  [[ "$(read_systemd_state enabled)" == "false" \
+    && "$(read_systemd_state active_state)" == "inactive" \
+    && "$(read_systemd_state sub_state)" == "dead" \
+    && "$(read_systemd_state main_pid)" == "0" ]]
+}}
+cleanup_candidate() {{
+  printf '%s\\n' "cleanup-candidate" >> "$SYSTEMD_TRACE_FILE"
+  return 0
+}}
+
+write_systemd_state true active running 99999999
+
+{handler_source}
+
+{guard_source}
+
+{signal_guard_source}
+
+trap transaction_exit_guard EXIT
+{signal_trap_source}
+if [[ "$INJECT_SIGNAL" != "none" ]]; then
+  set -T
+  trap debug_injector DEBUG
+fi
+{explicit_command}
+"""
+                harness_path = case_root / "harness.sh"
+                harness_path.write_text(harness, encoding="utf-8", newline="\n")
+                completed = subprocess.run(
+                    [
+                        bash,
+                        harness_path.as_posix(),
+                        marker.as_posix(),
+                        state.as_posix(),
+                        trace.as_posix(),
+                        failure_mode,
+                        inject_signal,
+                        inject_step,
+                        signal_trace.as_posix(),
+                        signal_delivery_mode,
+                    ],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+                    ),
+                )
+                if completed.returncode != 1:
+                    raise AssertionError(
+                        f"{label}/{case_name}: compensation must terminate with status 1, "
+                        f"got {completed.returncode}"
+                    )
+                if completed.stdout:
+                    raise AssertionError(
+                        f"{label}/{case_name}: compensation leaked stdout: "
+                        f"{completed.stdout!r}"
+                    )
+                stderr = completed.stderr
+                expected_reason = (
+                    explicit_reason
+                    if explicit_reason is not None
+                    else f"{contract['unexpected_prefix']} {trigger_status}"
+                )
+                message_counts = {
+                    "failure_prefix": stderr.count(str(contract["failure_prefix"])),
+                    "reason": stderr.count(expected_reason),
+                    "confirmed": stderr.count("FAIL-CLOSED CONFIRMED:"),
+                    "not_confirmed": stderr.count(
+                        "CRITICAL: FAIL-CLOSED NOT CONFIRMED"
+                    ),
+                    "recursive": stderr.count("recursive transaction failure"),
+                    "do_not_reboot": stderr.count("DO NOT REBOOT"),
+                }
+                if expect_confirmed:
+                    expected_counts = {
+                        "failure_prefix": 1,
+                        "reason": 1,
+                        "confirmed": 1,
+                        "not_confirmed": 0,
+                        "recursive": 0,
+                        "do_not_reboot": 0,
+                    }
+                else:
+                    expected_counts = {
+                        "failure_prefix": 1,
+                        "reason": 1,
+                        "confirmed": 0,
+                        "not_confirmed": 1,
+                        "recursive": 0,
+                        "do_not_reboot": 1,
+                    }
+                if message_counts != expected_counts:
+                    raise AssertionError(
+                        f"{label}/{case_name}: contradictory compensation messages: "
+                        f"counts={message_counts!r} stderr={stderr!r}"
+                    )
+                if marker.read_bytes() != marker_payload:
+                    raise AssertionError(
+                        f"{label}/{case_name}: active transaction marker was modified"
+                    )
+                if inject_signal != "none":
+                    expected_signal_trace = (
+                        f"{inject_signal}\t{inject_before}\t{signal_delivery_mode}"
+                    )
+                    if (
+                        not signal_trace.is_file()
+                        or signal_trace.read_text(encoding="utf-8").splitlines()
+                        != [expected_signal_trace]
+                    ):
+                        actual_signal_trace = (
+                            signal_trace.read_text(encoding="utf-8")
+                            if signal_trace.exists()
+                            else None
+                        )
+                        raise AssertionError(
+                            f"{label}/{case_name}: DEBUG signal injection did not fire "
+                            f"exactly once at the requested command: "
+                            f"{actual_signal_trace!r}"
+                        )
+                    completed_signal_cases += 1
+                    if inject_step == "guard_signal_mask":
+                        completed_guard_signal_cases += 1
+                elif signal_trace.exists():
+                    raise AssertionError(
+                        f"{label}/{case_name}: unexpected signal trace was written"
+                    )
+
+                raw_systemd_state: dict[str, str] = {}
+                for line in state.read_text(encoding="utf-8").splitlines():
+                    key, separator, value = line.partition("=")
+                    if not separator or key in raw_systemd_state:
+                        raise AssertionError(
+                            f"{label}/{case_name}: malformed systemd state line: "
+                            f"{line!r}"
+                        )
+                    raw_systemd_state[key] = value
+                if raw_systemd_state.get("enabled") not in {"true", "false"}:
+                    raise AssertionError(
+                        f"{label}/{case_name}: invalid systemd enabled state"
+                    )
+                try:
+                    main_pid = int(raw_systemd_state["main_pid"])
+                except (KeyError, ValueError) as error:
+                    raise AssertionError(
+                        f"{label}/{case_name}: invalid systemd MainPID state"
+                    ) from error
+                systemd_state = {
+                    "enabled": raw_systemd_state["enabled"] == "true",
+                    "active_state": raw_systemd_state.get("active_state"),
+                    "sub_state": raw_systemd_state.get("sub_state"),
+                    "main_pid": main_pid,
+                }
+                if (
+                    type(systemd_state.get("enabled")) is not bool
+                    or type(systemd_state.get("active_state")) is not str
+                    or type(systemd_state.get("sub_state")) is not str
+                    or type(systemd_state.get("main_pid")) is not int
+                    or (expect_confirmed and systemd_state != expected_state)
+                ):
+                    raise AssertionError(
+                        f"{label}/{case_name}: fail-closed systemd state drifted: "
+                        f"{systemd_state!r}"
+                    )
+                trace_lines = trace.read_text(encoding="utf-8").splitlines()
+                expected_trace_counts = {
+                    "disable": 1,
+                    "reset-failed": 1,
+                    "show-active": 1,
+                    "show-sub": 1,
+                    "show-main-pid": 2,
+                    "fsync-enablement": 1,
+                    "stop-verify": 1,
+                    "probe-enablement": 1,
+                    "acl-minimal": 1,
+                    "assert-persistent-disabled": 1,
+                    "cleanup-candidate": 1 if label == "deploy-release.sh" else 0,
+                }
+                trace_counts = {
+                    name: trace_lines.count(name) for name in expected_trace_counts
+                }
+                if trace_counts != expected_trace_counts:
+                    raise AssertionError(
+                        f"{label}/{case_name}: systemd compensation trace drifted: "
+                        f"{trace_counts!r}"
+                    )
+                if failure_mode != "none":
+                    completed_failure_cases += 1
+                completed_cases += 1
+
+    return {
+        "scripts": len(contracts),
+        "cases": completed_cases,
+        "baseline_cases": len(contracts) * len(baseline_case_specs),
+        "signal_injection_cases": completed_signal_cases,
+        "guard_entry_signal_cases": completed_guard_signal_cases,
+        "failure_branch_cases": completed_failure_cases,
+        "signals": sorted(
+            {spec[0] for spec in signal_case_specs}
+            | {spec[0] for spec in guard_signal_case_specs}
+        ),
+        "signal_delivery_mode": signal_delivery_mode,
+        "real_signal_injection_executed": signal_delivery_mode == "real_signal",
+        "failure_modes": list(failure_modes),
+        "trigger_statuses": [
+            int(spec["trigger_status"]) for spec in baseline_case_specs
+        ],
+        "terminal_status": 1,
+        "marker_retained": True,
+        "systemd_fail_closed_state": expected_state,
+        "mutually_exclusive_verdict": True,
+    }
+
+
 def content_after(content: str, fragment: str, label: str) -> str:
     position = content.find(fragment)
     if position < 0:
@@ -1674,6 +2303,7 @@ def main() -> int:
         raise AssertionError("bash is required for transaction contract tests")
     contents = {path.name: path.read_text(encoding="utf-8") for path in SHELL_SCRIPTS}
 
+    exit_guard_contract = assert_transaction_exit_guard_ownership(bash, contents)
     runtime_schema = assert_runtime_fingerprint_schema()
     publication_sources: dict[str, str] = {}
     enablement_collectors: dict[str, str] = {}
@@ -1796,11 +2426,61 @@ def main() -> int:
     ) = assert_recovery_marker_types(recovery)
     assert_recovery_guard_reports_actual_state(recovery)
 
+    not_proven = ["real systemd behavior", "power-loss atomicity", "production recovery"]
+    if not exit_guard_contract["real_signal_injection_executed"]:
+        not_proven.insert(
+            0,
+            "real POSIX signal delivery "
+            "(Windows uses signal-guard invocation and trap-state probes only)",
+        )
+
     report = {
         "status": "passed",
         "suite": "release_transaction_contract",
-        "scope": "static shell contracts plus isolated marker and publication unit probes",
+        "scope": (
+            "static shell contracts plus isolated exit-guard, marker, "
+            "and publication unit probes"
+        ),
         "checks": {
+            "transaction_exit_guard_scripts": exit_guard_contract["scripts"],
+            "transaction_exit_guard_dynamic_cases": exit_guard_contract["cases"],
+            "transaction_exit_guard_baseline_cases": exit_guard_contract[
+                "baseline_cases"
+            ],
+            "transaction_exit_guard_signal_injection_cases": exit_guard_contract[
+                "signal_injection_cases"
+            ],
+            "transaction_exit_guard_guard_entry_signal_cases": exit_guard_contract[
+                "guard_entry_signal_cases"
+            ],
+            "transaction_exit_guard_failure_branch_cases": exit_guard_contract[
+                "failure_branch_cases"
+            ],
+            "transaction_exit_guard_signals": exit_guard_contract["signals"],
+            "transaction_exit_guard_signal_delivery_mode": exit_guard_contract[
+                "signal_delivery_mode"
+            ],
+            "transaction_exit_guard_real_signal_injection_executed": (
+                exit_guard_contract["real_signal_injection_executed"]
+            ),
+            "transaction_exit_guard_failure_modes": exit_guard_contract[
+                "failure_modes"
+            ],
+            "transaction_exit_guard_trigger_statuses": exit_guard_contract[
+                "trigger_statuses"
+            ],
+            "transaction_exit_guard_terminal_status": exit_guard_contract[
+                "terminal_status"
+            ],
+            "transaction_exit_guard_marker_retained": exit_guard_contract[
+                "marker_retained"
+            ],
+            "transaction_exit_guard_systemd_fail_closed_state": exit_guard_contract[
+                "systemd_fail_closed_state"
+            ],
+            "transaction_exit_guard_mutually_exclusive_verdict": exit_guard_contract[
+                "mutually_exclusive_verdict"
+            ],
             "runtime_fingerprint_schema": runtime_schema,
             "runtime_helper_baseline_binding": True,
             "atomic_probe_script_count": len(contents),
@@ -1836,11 +2516,7 @@ def main() -> int:
             ],
             "process_environment_provenance_bound": True,
         },
-        "not_proven": [
-            "real systemd behavior",
-            "power-loss atomicity",
-            "production recovery",
-        ],
+        "not_proven": not_proven,
     }
     print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     return 0

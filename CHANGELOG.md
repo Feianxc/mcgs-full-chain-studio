@@ -4,6 +4,16 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-29
+
+### Fixed
+
+- Make the deploy and rollback transaction guards capture the original exit status, ignore `INT`/`TERM`/`HUP`, and disarm `EXIT` before entering compensation. The top-level signal handler now ignores further signals and invokes the same guard explicitly with status `130`, so a signal delivered while an `EXIT` guard is active cannot escape without a fail-closed verdict. The compensation handlers retain their own signal mask as defense in depth. Explicit fallback and unexpected `EXIT` paths emit exactly one final safety verdict, persistently disable and stop the service, retain the active transaction marker, and terminate unsuccessfully.
+
+### Verification boundary
+
+- Thirty-six isolated dynamic Bash cases cover explicit fallback, unexpected status `1`, unexpected status `42`, five handler signal checkpoints, unexpected-false and unexpected-exit-42 signal handoff after guard entry, and eight compensation-failure modes for both deploy and rollback handlers. Confirmed-compensation cases assert message cardinality, terminal status, marker retention, and the disabled/inactive/dead/MainPID-zero state; injected compensation-failure cases instead require exactly one unconfirmed verdict and `DO NOT REBOOT` warning while retaining the marker and tracing every attempted recovery step. Windows executes the actual signal-guard function for pre-mask handoff and trap-state probes after masking, but does not execute real POSIX signal delivery; real Linux/systemd staging, interruption, reboot, and production recovery acceptance remain separate gates.
+
 ## [0.1.1] - 2026-07-28
 
 ### Added
@@ -74,8 +84,9 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 ### Known issues
 
-- `v0.1.0` is published as a prerelease. Its deployment scripts have known production-safety defects and must not be used for production deployment; use the reviewed `v0.1.1` contract instead.
+- `v0.1.0` is published as a prerelease with known production-safety defects. `v0.1.1` is retained for audit only because its explicit transaction-compensation path can emit contradictory final safety verdicts. Do not use either version to deploy, roll back or recover a host; use the reviewed `v0.1.2` contract instead.
 
-[Unreleased]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Feianxc/mcgs-full-chain-studio/releases/tag/v0.1.0

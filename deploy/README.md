@@ -2,7 +2,7 @@
 
 This directory implements a release-directory deployment. It deliberately does **not** modify DNS, Cloudflare Tunnel configuration, account records or historical generated runs.
 
-> **Release warning:** these instructions describe the `v0.1.1` contract. The public `v0.1.0` release is a prerelease and its deployment scripts have known production-safety defects. Do **not** use `v0.1.0` deployment scripts on a production host.
+> **Release warning:** these instructions describe the `v0.1.2` contract. The public `v0.1.0` release is a prerelease with known production-safety defects. `v0.1.1` is retained for audit only because an explicit transaction-compensation path can emit contradictory final safety verdicts. Do **not** use `v0.1.0` or `v0.1.1` to deploy, roll back or recover any host.
 
 > **Evidence boundary:** repository tests and `tests/deploy_contract_test.py` validate source, syntax and static text contracts. They do not execute a real systemd transaction. A release is not production-verified until the exact frozen archive, Wheelhouse and control bundle have passed prepare, switch, runtime, rollback/recovery and application acceptance on the target Linux host. This document does not assert that such production verification has already occurred.
 
@@ -34,7 +34,7 @@ The repository's `protocol-studio.service` is a reviewed reference for a fresh h
 
 Every deployment requires all of the following:
 
-1. the frozen `mcgs-full-chain-studio-0.1.1.tar.gz` archive;
+1. the frozen `mcgs-full-chain-studio-0.1.2.tar.gz` archive;
 2. its 64-character SHA-256 obtained from an authenticated release/CI channel and passed with `--archive-sha256`;
 3. a complete offline, wheel-only directory selected through `PROTOCOL_STUDIO_WHEELHOUSE`;
 4. the matching `requirements.production.lock.txt` inside the archive;
@@ -56,21 +56,21 @@ The managed unit also fixes `StartLimitIntervalSec=60s` and `StartLimitBurst=3`.
 
 `PROTOCOL_STUDIO_PUBLIC_ORIGIN` must be an origin-only canonical lowercase HTTPS DNS value such as `https://protocol.feian.online`: no credentials, IP literal, port, path, query or fragment. The read-only checker accepts `PROTOCOL_STUDIO_LOCAL_ORIGIN` only as `http://127.0.0.1:<port>`, with a decimal port from `1` through `65535` and no path, query or fragment. Public and local origins must remain distinct.
 
-The v0.1.1 direct production pins are FastAPI `0.140.7`, Starlette `1.3.1`, Uvicorn `0.38.0`, Pydantic `2.12.5`, Jinja2 `3.1.6` and openpyxl `3.1.2`. The production lock expands these to 17 packages. The formal 17-wheel input was promoted only after target-host digest readback, no-index hash-required installation, `pip check` and dependency-import smoke passed. The exact frozen source archive's complete Linux runner, staging transaction and production acceptance remain separate gates. The dependency SBOM covers those 17 locked application dependencies; it does not automatically inventory pip, setuptools or other deployment tooling introduced by `venv`/`ensurepip`.
+The v0.1.2 direct production pins are FastAPI `0.140.7`, Starlette `1.3.1`, Uvicorn `0.38.0`, Pydantic `2.12.5`, Jinja2 `3.1.6` and openpyxl `3.1.2`. The production lock expands these to 17 packages. The formal 17-wheel input was promoted only after target-host digest readback, no-index hash-required installation, `pip check` and dependency-import smoke passed. The exact frozen source archive's complete Linux runner, staging transaction and production acceptance remain separate gates. The dependency SBOM covers those 17 locked application dependencies; it does not automatically inventory pip, setuptools or other deployment tooling introduced by `venv`/`ensurepip`.
 
-The application reads its version from `pyproject.toml`, and FastAPI metadata therefore reports `0.1.1`. The `Dockerfile` copies `pyproject.toml` beside the production lock before copying application source and pins the official `python:3.11.6-slim-bookworm` manifest list to `sha256:cc758519481092eb5a4a5ab0c1b303e288880d59afc601958d19e95b300bc86b`. The digest and Docker context are source contracts only: the local release workstation has no Docker CLI, so no formal image build, runtime or acceptance is claimed here. The current Docker context does not copy the packaging-generated `release-manifest.json`; its health response therefore has no Release identity. That image is **not permitted for container production** until a Manifest-bound image contract, real build/run, vulnerability review and runtime acceptance have passed.
+The application reads its version from `pyproject.toml`, and FastAPI metadata therefore reports `0.1.2`. The `Dockerfile` copies `pyproject.toml` beside the production lock before copying application source and pins the official `python:3.11.6-slim-bookworm` manifest list to `sha256:cc758519481092eb5a4a5ab0c1b303e288880d59afc601958d19e95b300bc86b`. The digest and Docker context are source contracts only: the local release workstation has no Docker CLI, so no formal image build, runtime or acceptance is claimed here. The current Docker context does not copy the packaging-generated `release-manifest.json`; its health response therefore has no Release identity. That image is **not permitted for container production** until a Manifest-bound image contract, real build/run, vulnerability review and runtime acceptance have passed.
 
 On POSIX, `run_with_env.py` closes every inherited file descriptor above `2` before `exec`, preserving only stdin/stdout/stderr. Rollback and recovery also close their Shell descriptors `8` and `9` before launching long-lived canaries. This defense-in-depth contract still requires a real Linux `/proc/self/fd` and lock-release check; Windows static or unit-test evidence is not a substitute.
 
 A typical protected layout is:
 
 ```text
-/root/protocol-studio-v0.1.1-control/
+/root/protocol-studio-v0.1.2-control/
   deploy/                       frozen Shell/Python control helpers
   packaging/                    frozen verifier and release allowlist
   incoming/
-    mcgs-full-chain-studio-0.1.1.tar.gz
-    mcgs-full-chain-studio-0.1.1.tar.gz.sha256
+    mcgs-full-chain-studio-0.1.2.tar.gz
+    mcgs-full-chain-studio-0.1.2.tar.gz.sha256
   wheelhouse/                   root-owned .whl files only
 ```
 
@@ -78,7 +78,7 @@ Keep the archive digest as an operator-controlled value from the authenticated s
 
 ## Persistent deployment control state
 
-`v0.1.1` keeps deployment control data outside both releases and shared application data:
+`v0.1.2` keeps deployment control data outside both releases and shared application data:
 
 ```text
 /srv/apps/protocol-studio/.deploy-state/
@@ -114,43 +114,43 @@ The marker remains active through guarded validation, logical commit, guard remo
 
 The scripts do not delete prior releases, published runtime baselines, failed releases, locks, backups or transaction archives. A release directory that exists without an active marker or corresponding passed deployment record can be evidence of the narrow interruption window between candidate promotion and marker publication. Treat it as an **orphan/failed candidate**, not as deployed or reusable: the same release ID will be refused. If the corresponding published baseline exists, quarantine the release and baseline together after canonical-path, active-target, ownership, ACL and hash review. A leftover `.pending-<release-id>.json` baseline is a separate protected failure artifact and must also be reviewed and quarantined explicitly. Deploy, rollback and recovery never delete a published baseline or auto-promote/quarantine these artifacts. Before promotion, the deploy exit path removes only a safely typed, helper-owned pending baseline and temporary transaction marker; it refuses cleanup if their type, owner or mode is unexpected.
 
-Hidden `.pending-deploy-*`, `.pending-rollback-*` and `.pending-recovery-*` records are protected commit evidence, not temporary clutter. They are fsynced before the related logical status transition. With an active committed marker, recovery validates and reconciles pending-only, matching pending+final, or trusted final-only evidence; it fsyncs the final state, removes only the matching pending name, persists the directory and refuses mismatched evidence. A v0.1.1 archived marker without its trusted final passed record violates the completion contract and must not be called passed or repaired by hand.
+Hidden `.pending-deploy-*`, `.pending-rollback-*` and `.pending-recovery-*` records are protected commit evidence, not temporary clutter. They are fsynced before the related logical status transition. With an active committed marker, recovery validates and reconciles pending-only, matching pending+final, or trusted final-only evidence; it fsyncs the final state, removes only the matching pending name, persists the directory and refuses mismatched evidence. A v0.1.2 archived marker without its trusted final passed record violates the completion contract and must not be called passed or repaired by hand.
 
-The historical `.deploy.lock` is a compatibility lock file, not a success marker. Its mere presence is not an error when no process holds its `flock`, and the v0.1.1 scripts intentionally preserve it. Never delete it to work around lock contention; identify the holder and reconcile the older operation first.
+The historical `.deploy.lock` is a compatibility lock file, not a success marker. Its mere presence is not an error when no process holds its `flock`, and the v0.1.2 scripts intentionally preserve it. Never delete it to work around lock contention; identify the holder and reconcile the older operation first.
 
 ## Release process
 
 ### 1. Build and verify away from production
 
 ```bash
-python packaging/build_release.py --version 0.1.1
-python packaging/verify_release.py dist/mcgs-full-chain-studio-0.1.1.tar.gz
-(cd dist && sha256sum --check mcgs-full-chain-studio-0.1.1.tar.gz.sha256)
+python packaging/build_release.py --version 0.1.2
+python packaging/verify_release.py dist/mcgs-full-chain-studio-0.1.2.tar.gz
+(cd dist && sha256sum --check mcgs-full-chain-studio-0.1.2.tar.gz.sha256)
 
 RELEASE_COMMIT='replace-with-reviewed-release-commit'
 export SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$RELEASE_COMMIT")"
 python packaging/generate_sbom.py \
   --lock requirements.production.lock.txt \
-  --wheelhouse dist/wheelhouse-v0.1.1 \
-  --output dist/mcgs-full-chain-studio-0.1.1.cdx.json \
+  --wheelhouse dist/wheelhouse-v0.1.2 \
+  --output dist/mcgs-full-chain-studio-0.1.2.cdx.json \
   --application-name mcgs-full-chain-studio \
-  --application-version 0.1.1
-(cd dist && sha256sum --check mcgs-full-chain-studio-0.1.1.cdx.json.sha256)
+  --application-version 0.1.2
+(cd dist && sha256sum --check mcgs-full-chain-studio-0.1.2.cdx.json.sha256)
 ```
 
-Build the wheel-only Wheelhouse from the reviewed production lock for the intended Linux x86_64/CPython 3.11 ABI. The implemented v0.1.1 SBOM contract binds the project name/version and six exact direct pins declared by `pyproject.toml` to a non-empty fully hashed lock and an exactly matching pure-wheel Wheelhouse, evaluates applicable `Requires-Dist` markers for OpenCloudOS/Linux x86_64 with CPython 3.11.6, and validates the dependency closure before writing CycloneDX 1.5 JSON plus a checksum sidecar. Independent readback covers 17 locked application components and 18 dependency records, and the formal Wheelhouse input has passed target-host offline dependency acceptance. Official CycloneDX Schema validation, same-commit GitHub publication provenance, the exact source archive's complete Linux runner and runtime deployment acceptance remain separate gates.
+Build the wheel-only Wheelhouse from the reviewed production lock for the intended Linux x86_64/CPython 3.11 ABI. The implemented v0.1.2 SBOM contract binds the project name/version and six exact direct pins declared by `pyproject.toml` to a non-empty fully hashed lock and an exactly matching pure-wheel Wheelhouse, evaluates applicable `Requires-Dist` markers for OpenCloudOS/Linux x86_64 with CPython 3.11.6, and validates the dependency closure before writing CycloneDX 1.5 JSON plus a checksum sidecar. Independent readback covers 17 locked application components and 18 dependency records, and the formal Wheelhouse input has passed target-host offline dependency acceptance. Official CycloneDX Schema validation, same-commit GitHub publication provenance, the exact source archive's complete Linux runner and runtime deployment acceptance remain separate gates.
 
 The source release verifier independently requires the allowlist policy and Manifest to cover exactly nine non-empty release trees and the stable entry sentinel assigned to each tree. Other optional files within those trees remain optional.
 
 When a formal release tree contains `release-manifest.json`, `/api/health` exposes its lowercase SHA-256 both as JSON `release_manifest_sha256` and as the single `X-MCGS-Release-Manifest-SHA256` header. A source/development tree without the Manifest returns JSON `null` and omits the header; that mode proves availability only, not release identity.
 
-The formal `v0.1.1` GitHub Release asset **plan** is:
+The formal `v0.1.2` GitHub Release asset **plan** is:
 
 ```text
-mcgs-full-chain-studio-0.1.1.tar.gz
-mcgs-full-chain-studio-0.1.1.tar.gz.sha256
-mcgs-full-chain-studio-0.1.1.cdx.json
-mcgs-full-chain-studio-0.1.1.cdx.json.sha256
+mcgs-full-chain-studio-0.1.2.tar.gz
+mcgs-full-chain-studio-0.1.2.tar.gz.sha256
+mcgs-full-chain-studio-0.1.2.cdx.json
+mcgs-full-chain-studio-0.1.2.cdx.json.sha256
 ```
 
 Run all repository tests and complete the ownership/privacy review before uploading. Rebuild and independently read back all four assets from one frozen commit, then preserve the authenticated archive digest separately for `--archive-sha256`. The list above is a plan, not evidence that the assets or GitHub Release already exist. The offline Wheelhouse remains a separate authenticated deployment input unless a future release process defines and verifies a dedicated Wheelhouse bundle.
@@ -162,11 +162,11 @@ Copy the archive, checksum sidecar, Wheelhouse and matching control bundle into 
 The examples below use one release ID for both prepare and switch:
 
 ```bash
-CONTROL=/root/protocol-studio-v0.1.1-control
-ARCHIVE="$CONTROL/incoming/mcgs-full-chain-studio-0.1.1.tar.gz"
+CONTROL=/root/protocol-studio-v0.1.2-control
+ARCHIVE="$CONTROL/incoming/mcgs-full-chain-studio-0.1.2.tar.gz"
 ARCHIVE_SHA256='<64-lowercase-hex-from-authenticated-sidecar>'
 WHEELHOUSE="$CONTROL/wheelhouse"
-RELEASE_ID='20260728-0.1.1-prod'
+RELEASE_ID='20260729-0.1.2-prod'
 ```
 
 ### 3. Prepare the new release without switching traffic
@@ -179,7 +179,7 @@ sudo /usr/bin/env PROTOCOL_STUDIO_WHEELHOUSE="$WHEELHOUSE" \
   --archive "$ARCHIVE" \
   --archive-sha256 "$ARCHIVE_SHA256" \
   --release-id "$RELEASE_ID" \
-  --expected-version 0.1.1 \
+  --expected-version 0.1.2 \
   --prepare-only
 ```
 
@@ -205,7 +205,7 @@ sudo /usr/bin/env PROTOCOL_STUDIO_WHEELHOUSE="$WHEELHOUSE" \
   --archive "$ARCHIVE" \
   --archive-sha256 "$ARCHIVE_SHA256" \
   --release-id "$RELEASE_ID" \
-  --expected-version 0.1.1 \
+  --expected-version 0.1.2 \
   --confirm-switch-production
 ```
 

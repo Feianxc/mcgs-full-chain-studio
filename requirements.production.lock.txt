@@ -1,8 +1,8 @@
 # Fully transitive production lock for OpenCloudOS 9.4 x86_64 / CPython 3.11.6.
 # Resolved/downloaded wheel-only with pip 25.3 using: --platform manylinux2014_x86_64 --python-version 311 --implementation cp --abi cp311 --only-binary=:all:.
-# Formal wheelhouse: dist/wheelhouse-v0.1.1 (17 packages; exactly one wheel and one SHA-256 per package).
+# Formal wheelhouse: dist/wheelhouse-v0.1.2 (17 packages; exactly one wheel and one SHA-256 per package).
 # The candidate passed target-host offline hash install, pip check and dependency smoke before promotion; full Linux application tests remain a release gate.
-# Formal install check: python3.11 -m pip install --no-index --find-links dist/wheelhouse-v0.1.1 --only-binary=:all: --require-hashes -r requirements.production.lock.txt
+# Formal install check: python3.11 -m pip install --no-index --find-links dist/wheelhouse-v0.1.2 --only-binary=:all: --require-hashes -r requirements.production.lock.txt
 #
 annotated-doc==0.0.5 --hash=sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101
 annotated-types==0.8.0 --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0

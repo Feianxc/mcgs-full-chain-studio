@@ -2238,8 +2238,11 @@ restore_previous() {
     printf 'DO NOT REBOOT; retain the active transaction marker for audited recovery.\n' >&2
     exit 1
   fi
-  ROLLBACK_RECOVERY_RUNNING="true"
   trap '' INT TERM HUP
+  ROLLBACK_RECOVERY_RUNNING="true"
+  # This compensation handler owns the terminal path after it starts.  Explicit
+  # `command || restore_previous` calls must not re-enter it via EXIT.
+  trap - EXIT
   set +e
   printf 'ROLLBACK TARGET FAILED: %s\n' "$reason" >&2
   original_pid="$(systemctl show "$SERVICE" --property=MainPID --value 2>/dev/null)"
@@ -2283,14 +2286,20 @@ restore_previous() {
 }
 
 transaction_exit_guard() {
-  local status="$?"
+  local status="${1:-$?}"
+  trap '' INT TERM HUP
+  trap - EXIT
   if [[ "$TRANSACTION_ACTIVE" == "true" ]]; then
     restore_previous "rollback transaction exited unexpectedly with status $status"
   fi
   exit "$status"
 }
+transaction_signal_guard() {
+  trap '' INT TERM HUP
+  transaction_exit_guard 130
+}
 trap transaction_exit_guard EXIT
-trap 'exit 130' INT TERM HUP
+trap transaction_signal_guard INT TERM HUP
 
 sync -f "$TARGET" || fail "cannot make the rollback target durable"
 sync -f "$CONTROL_DIR" || fail "cannot make rollback evidence durable"
