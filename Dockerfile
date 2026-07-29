@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.11.6-slim-bookworm@sha256:cc758519481092eb5a4a5ab0c1b303e288880d59afc601958d19e95b300bc86b
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -9,9 +9,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.production.txt ./
-RUN python -m pip install --upgrade pip \
-    && python -m pip install --requirement requirements.production.txt
+COPY pyproject.toml requirements.production.lock.txt ./
+RUN python -m pip install \
+    --no-cache-dir \
+    --only-binary=:all: \
+    --require-hashes \
+    --requirement requirements.production.lock.txt \
+    && python -m pip check
 
 COPY protocol_studio ./protocol_studio
 COPY mvp_generator ./mvp_generator

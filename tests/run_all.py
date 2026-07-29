@@ -19,6 +19,16 @@ JAVASCRIPT_TESTS = [
 ]
 
 PYTHON_TESTS = [
+    "tests/atomic_rename_test.py",
+    "tests/deploy_contract_test.py",
+    "tests/transaction_contract_test.py",
+    "tests/environment_file_contract_test.py",
+    "tests/packaging_contract_test.py",
+    "tests/sbom_test.py",
+    "tests/release_path_policy_test.py",
+    "tests/release_workflow_contract_test.py",
+    "tests/runtime_fingerprint_test.py",
+    "tests/sqlite_backup_test.py",
     "tests/integration_auth_test.py",
     "tests/three_file_generation_test.py",
     "tests/protocol/protocol_studio_dynamic_module_sequence_test.py",

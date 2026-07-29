@@ -117,9 +117,25 @@ def main() -> None:
     with TestClient(app, base_url="https://testserver") as client:
         root = client.get("/", follow_redirects=False)
         expect(root.status_code == 303, f"unauthenticated root status: {root.status_code}")
-        expect(root.headers.get("location", "").startswith("https://testserver/login"), "root did not redirect to login")
+        expect(root.headers.get("location") == "/login", "root login redirect is not exact")
         protocol = client.get("/protocol/", follow_redirects=False)
         expect(protocol.status_code == 303, f"unauthenticated protocol status: {protocol.status_code}")
+        expect(protocol.headers.get("location") == "/login", "protocol login redirect is not exact")
+
+        hostile_origin = client.get(
+            "/?next=https://evil.invalid/steal",
+            headers={
+                "Host": "localhost",
+                "X-Forwarded-Host": "evil.invalid",
+                "X-Forwarded-Proto": "http",
+            },
+            follow_redirects=False,
+        )
+        expect(hostile_origin.status_code == 303, "host-independent redirect status drifted")
+        expect(
+            hostile_origin.headers.get("location") == "/login",
+            "host or query input influenced the login redirect",
+        )
 
         bootstrap = client.get("/api/bootstrap")
         expect(bootstrap.status_code == 401, f"unauthenticated bootstrap status: {bootstrap.status_code}")

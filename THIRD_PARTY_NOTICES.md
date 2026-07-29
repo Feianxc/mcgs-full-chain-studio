@@ -17,13 +17,14 @@ The vendored license file must remain in source and binary distributions that in
 
 The production environment installs these packages from their respective distributors; their source is not copied into this repository:
 
-| Package | Declared license |
-| --- | --- |
-| FastAPI | MIT |
-| Uvicorn | BSD-3-Clause |
-| Pydantic | MIT |
-| Jinja2 | BSD-3-Clause |
-| openpyxl | MIT |
+| Package | Production pin | Declared license |
+| --- | --- | --- |
+| FastAPI | 0.140.7 | MIT |
+| [Starlette](https://www.starlette.io/) | 1.3.1 | BSD-3-Clause |
+| Uvicorn | 0.38.0 | BSD-3-Clause |
+| Pydantic | 2.12.5 | MIT |
+| Jinja2 | 3.1.6 | BSD-3-Clause |
+| openpyxl | 3.1.2 | MIT |
 
 Each installed distribution may bring transitive dependencies. Release operators must preserve the license metadata shipped in the environment or container and should generate a dependency inventory for the exact build.
 

@@ -173,22 +173,38 @@ class Finding:
 
 
 def normalize_relative(root: Path, path: Path) -> str:
-    relative = path.resolve().relative_to(root.resolve())
+    # Keep this lexical. Resolving ``path`` here would erase the directory
+    # entry that tells us it is a symlink and can also raise ValueError while
+    # merely sorting an escaping link.
+    root_absolute = Path(os.path.abspath(root))
+    path_absolute = Path(os.path.abspath(path))
+    relative = path_absolute.relative_to(root_absolute)
     return PurePosixPath(*relative.parts).as_posix()
 
 
 def iter_candidate_files(root: Path) -> list[Path]:
-    files: list[Path] = []
+    files: list[tuple[str, Path]] = []
     for path in root.rglob("*"):
         try:
-            relative_parts = path.relative_to(root).parts
+            relative = path.relative_to(root)
         except ValueError:
             continue
+        relative_parts = relative.parts
         if any(part in SKIP_PARTS for part in relative_parts):
             continue
         if path.is_file() or path.is_symlink():
-            files.append(path)
-    return sorted(files, key=lambda item: normalize_relative(root, item))
+            relative_text = PurePosixPath(*relative_parts).as_posix()
+            files.append((relative_text, path))
+    return [path for _, path in sorted(files, key=lambda item: item[0])]
+
+
+def has_symlink_component(root: Path, relative: PurePosixPath) -> bool:
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            return True
+    return False
 
 
 def load_deny_tokens(root: Path, explicit: Path | None) -> list[str]:
@@ -220,8 +236,10 @@ def scan_paths(
     root = root.resolve()
     findings: list[Finding] = []
 
-    for path in paths:
-        path = path.resolve()
+    for candidate in paths:
+        # Inspect the original directory entry before resolving it. Otherwise
+        # both in-tree and root-escaping symlinks appear to be regular files.
+        path = candidate
         try:
             relative = normalize_relative(root, path)
         except ValueError:
@@ -231,6 +249,23 @@ def scan_paths(
             continue
 
         pure = PurePosixPath(relative)
+        if has_symlink_component(root, pure):
+            findings.append(Finding("symbolic-link", relative, "symbolic links are not publishable"))
+            continue
+
+        try:
+            resolved = path.resolve()
+            normalize_relative(root, resolved)
+        except ValueError:
+            findings.append(
+                Finding("outside-root", relative, "candidate resolves outside the public root")
+            )
+            continue
+        except (OSError, RuntimeError) as exc:
+            findings.append(Finding("resolve-failed", relative, type(exc).__name__))
+            continue
+        path = resolved
+
         lower_parts = {part.lower() for part in pure.parts}
         forbidden_part = sorted(lower_parts.intersection(FORBIDDEN_PARTS))
         if forbidden_part:
@@ -241,10 +276,6 @@ def scan_paths(
                     f"contains forbidden path component: {forbidden_part[0]}",
                 )
             )
-
-        if path.is_symlink():
-            findings.append(Finding("symbolic-link", relative, "symbolic links are not publishable"))
-            continue
 
         suffix = path.suffix.lower()
         if suffix in FORBIDDEN_SUFFIXES:
