@@ -164,6 +164,10 @@ def assert_transaction_exit_guard_ownership(
             "signal INT before first_systemctl_show",
         ),
     )
+    guard_signal_case_specs = (
+        ("TERM", "false"),
+        ("HUP", "exit_42"),
+    )
     failure_modes = (
         "disable",
         "fsync_enablement",
@@ -182,6 +186,7 @@ def assert_transaction_exit_guard_ownership(
     }
     completed_cases = 0
     completed_signal_cases = 0
+    completed_guard_signal_cases = 0
     completed_failure_cases = 0
     signal_delivery_mode = "trap_state_probe" if os.name == "nt" else "real_signal"
 
@@ -200,6 +205,10 @@ def assert_transaction_exit_guard_ownership(
             ).encode("utf-8")
             handler_source = simple_shell_function_source(content, handler)
             guard_source = simple_shell_function_source(content, "transaction_exit_guard")
+            signal_guard_source = simple_shell_function_source(
+                content, "transaction_signal_guard"
+            )
+            signal_trap_source = "trap transaction_signal_guard INT TERM HUP"
             first_systemctl_show = next(
                 line.strip()
                 for line in handler_source.splitlines()
@@ -217,6 +226,24 @@ def assert_transaction_exit_guard_ownership(
                 ],
                 f"{label}-compensation-handler-blocks-signals-before-owning-exit",
             )
+            require_in_order(
+                guard_source,
+                [
+                    'local status="${1:-$?}"',
+                    "trap '' INT TERM HUP",
+                    "trap - EXIT",
+                ],
+                f"{label}-exit-guard-blocks-signals-before-compensation",
+            )
+            require_in_order(
+                signal_guard_source,
+                ["trap '' INT TERM HUP", "transaction_exit_guard 130"],
+                f"{label}-signal-guard-blocks-signals-before-explicit-exit-guard",
+            )
+            if content.count(signal_trap_source) != 1:
+                raise AssertionError(
+                    f"{label}: signal guard trap must be installed exactly once"
+                )
 
             injection_targets = {
                 "signal_mask": "trap '' INT TERM HUP",
@@ -251,6 +278,20 @@ def assert_transaction_exit_guard_ownership(
                     "expect_confirmed": True,
                 }
                 for signal, step, trigger_status, explicit_reason in signal_case_specs
+            )
+            case_specs.extend(
+                {
+                    "name": f"unexpected_{entry}_signal_{signal.lower()}_in_guard",
+                    "trigger_status": 130,
+                    "explicit_reason": None,
+                    "entry": entry,
+                    "failure_mode": "none",
+                    "inject_signal": signal,
+                    "inject_step": "guard_signal_mask",
+                    "inject_before": "trap '' INT TERM HUP",
+                    "expect_confirmed": True,
+                }
+                for signal, entry in guard_signal_case_specs
             )
             case_specs.extend(
                 {
@@ -311,6 +352,7 @@ DEBUG_FIRED="false"
 INJECT_BEFORE="none"
 
 case "$INJECT_STEP" in
+  guard_signal_mask) INJECT_BEFORE="trap '' INT TERM HUP" ;;
   signal_mask) INJECT_BEFORE="trap '' INT TERM HUP" ;;
   running_assignment) INJECT_BEFORE='{running}="true"' ;;
   exit_trap_clear) INJECT_BEFORE="trap - EXIT" ;;
@@ -323,6 +365,28 @@ case "$INJECT_STEP" in
   *) exit 64 ;;
 esac
 
+trap() {{
+  local caller="${{FUNCNAME[1]:-}}"
+  if [[ "$DEBUG_FIRED" == "false" \
+    && "$INJECT_STEP" == "guard_signal_mask" \
+    && "$caller" == "transaction_exit_guard" \
+    && "${{1-}}" == "" && "${{2-}}" == "INT" \
+    && "${{3-}}" == "TERM" && "${{4-}}" == "HUP" ]]; then
+    DEBUG_FIRED="true"
+    printf '%s\t%s\t%s\n' \
+      "$INJECT_SIGNAL" "$INJECT_BEFORE" "$SIGNAL_DELIVERY_MODE" \
+      > "$SIGNAL_TRACE_FILE"
+    if [[ "$SIGNAL_DELIVERY_MODE" == "real_signal" ]]; then
+      kill -s "$INJECT_SIGNAL" "$BASHPID"
+    elif [[ "$SIGNAL_DELIVERY_MODE" == "trap_state_probe" ]]; then
+      transaction_signal_guard
+    else
+      exit 64
+    fi
+  fi
+  builtin trap "$@"
+}}
+
 debug_injector() {{
   local pending_command="$BASH_COMMAND"
   if [[ "$DEBUG_FIRED" == "false" && "$pending_command" == "$INJECT_BEFORE" ]]; then
@@ -333,8 +397,9 @@ debug_injector() {{
     if [[ "$SIGNAL_DELIVERY_MODE" == "real_signal" ]]; then
       kill -s "$INJECT_SIGNAL" "$BASHPID"
     elif [[ "$SIGNAL_DELIVERY_MODE" == "trap_state_probe" ]]; then
-      if [[ "$INJECT_STEP" == "signal_mask" ]]; then
-        exit 130
+      if [[ "$INJECT_STEP" == "guard_signal_mask" \
+        || "$INJECT_STEP" == "signal_mask" ]]; then
+        transaction_signal_guard
       fi
       local trap_state
       trap_state="$(trap -p "$INJECT_SIGNAL")"
@@ -473,8 +538,10 @@ write_systemd_state true active running 99999999
 
 {guard_source}
 
+{signal_guard_source}
+
 trap transaction_exit_guard EXIT
-trap 'exit 130' INT TERM HUP
+{signal_trap_source}
 if [[ "$INJECT_SIGNAL" != "none" ]]; then
   set -T
   trap debug_injector DEBUG
@@ -578,6 +645,8 @@ fi
                             f"{actual_signal_trace!r}"
                         )
                     completed_signal_cases += 1
+                    if inject_step == "guard_signal_mask":
+                        completed_guard_signal_cases += 1
                 elif signal_trace.exists():
                     raise AssertionError(
                         f"{label}/{case_name}: unexpected signal trace was written"
@@ -650,8 +719,12 @@ fi
         "cases": completed_cases,
         "baseline_cases": len(contracts) * len(baseline_case_specs),
         "signal_injection_cases": completed_signal_cases,
+        "guard_entry_signal_cases": completed_guard_signal_cases,
         "failure_branch_cases": completed_failure_cases,
-        "signals": sorted({spec[0] for spec in signal_case_specs}),
+        "signals": sorted(
+            {spec[0] for spec in signal_case_specs}
+            | {spec[0] for spec in guard_signal_case_specs}
+        ),
         "signal_delivery_mode": signal_delivery_mode,
         "real_signal_injection_executed": signal_delivery_mode == "real_signal",
         "failure_modes": list(failure_modes),
@@ -2355,7 +2428,10 @@ def main() -> int:
 
     not_proven = ["real systemd behavior", "power-loss atomicity", "production recovery"]
     if not exit_guard_contract["real_signal_injection_executed"]:
-        not_proven.insert(0, "real POSIX signal delivery (Windows trap-state probe only)")
+        not_proven.insert(
+            0,
+            "real POSIX guard-active signal delivery (Windows trap-state probe only)",
+        )
 
     report = {
         "status": "passed",
@@ -2372,6 +2448,9 @@ def main() -> int:
             ],
             "transaction_exit_guard_signal_injection_cases": exit_guard_contract[
                 "signal_injection_cases"
+            ],
+            "transaction_exit_guard_guard_entry_signal_cases": exit_guard_contract[
+                "guard_entry_signal_cases"
             ],
             "transaction_exit_guard_failure_branch_cases": exit_guard_contract[
                 "failure_branch_cases"

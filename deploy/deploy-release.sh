@@ -2940,7 +2940,9 @@ rollback_to_previous() {
 }
 
 transaction_exit_guard() {
-  local status="$?"
+  local status="${1:-$?}"
+  trap '' INT TERM HUP
+  trap - EXIT
   if [[ "$TRANSACTION_ACTIVE" == "true" ]]; then
     rollback_to_previous "deployment transaction exited unexpectedly with status $status"
   else
@@ -2948,8 +2950,12 @@ transaction_exit_guard() {
   fi
   exit "$status"
 }
+transaction_signal_guard() {
+  trap '' INT TERM HUP
+  transaction_exit_guard 130
+}
 trap transaction_exit_guard EXIT
-trap 'exit 130' INT TERM HUP
+trap transaction_signal_guard INT TERM HUP
 
 # Keep the fully installed and canary-tested payload under its incoming name
 # throughout the final production-state recheck.  This avoids an orphan release
