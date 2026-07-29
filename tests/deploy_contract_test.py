@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1877,15 +1878,21 @@ def assert_trusted_path_acl_behavior(
                     root_case_count += 1
 
                 mutate_root_cases = (
-                    ("backup-mask", "file", backup_file, ["-m", "m::---"]),
-                    ("record-extended", "record", record_file, ["-m", "g:12345:---"]),
-                    ("code-extended", "code", code_file, ["-m", "u:12345:r-x"]),
-                    ("marker-extended", "file", marker_file, ["-m", "u:12345:r--"]),
-                    ("environment-extended", "file", env_file, ["-m", "g:12345:---"]),
-                    ("wheelhouse-default", "directory", wheelhouse, ["-m", "d:u:12345:r-x"]),
-                    ("control-extended", "directory", control, ["-m", "u:12345:r-x"]),
+                    ("backup-mask", "file", backup_file, ["-m", "m::---"], 0o600),
+                    ("record-extended", "record", record_file, ["-m", "g:12345:---"], 0o640),
+                    ("code-extended", "code", code_file, ["-m", "u:12345:r-x"], 0o755),
+                    (
+                        "marker-extended",
+                        "file",
+                        marker_file,
+                        ["-n", "-m", "u:12345:r--,m::---"],
+                        0o600,
+                    ),
+                    ("environment-extended", "file", env_file, ["-m", "g:12345:---"], 0o600),
+                    ("wheelhouse-default", "directory", wheelhouse, ["-m", "d:u:12345:r-x"], 0o755),
+                    ("control-extended", "directory", control, ["-m", "u:12345:r-x"], 0o750),
                 )
-                for case_name, path_type, path, acl_arguments in mutate_root_cases:
+                for case_name, path_type, path, acl_arguments, expected_mode in mutate_root_cases:
                     completed = subprocess.run(
                         [setfacl, *acl_arguments, os.fspath(path)],
                         cwd=trusted_root,
@@ -1898,6 +1905,13 @@ def assert_trusted_path_acl_behavior(
                         raise AssertionError(
                             f"root trusted ACL injection failed: case={case_name!r} "
                             f"exit={completed.returncode} stderr={completed.stderr!r}"
+                        )
+                    actual_mode = stat.S_IMODE(path.stat().st_mode)
+                    if actual_mode != expected_mode:
+                        raise AssertionError(
+                            "root trusted ACL injection changed the fixture mode before "
+                            f"the ACL gate: case={case_name!r} "
+                            f"expected={expected_mode:04o} actual={actual_mode:04o}"
                         )
                     run_case(
                         harness,
