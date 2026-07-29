@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Sequence
@@ -33,6 +34,19 @@ def read_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ReleaseError(f"{path.name} root must be an object")
     return value
+
+
+def read_project_version(root: Path) -> str:
+    try:
+        project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))[
+            "project"
+        ]
+        version = project["version"]
+    except (KeyError, OSError, tomllib.TOMLDecodeError) as exc:
+        raise ReleaseError("pyproject.toml does not contain a readable project version") from exc
+    if not isinstance(version, str) or not VERSION_PATTERN.fullmatch(version):
+        raise ReleaseError("pyproject.toml project version is invalid")
+    return version
 
 
 def validate_relative(value: str) -> PurePosixPath:
@@ -317,11 +331,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
+        project_version = read_project_version(root)
+        if not args.check_only and args.version != project_version:
+            raise ReleaseError(
+                f"requested release version {args.version!r} does not match pyproject.toml {project_version!r}"
+            )
+        effective_version = project_version if args.check_only else args.version
         policy = read_json_object(args.allowlist.resolve())
         files = collect_files(root, policy)
         run_privacy_gate(root, files)
         epoch = source_epoch()
-        manifest = build_manifest(root, files, args.version, epoch)
+        manifest = build_manifest(root, files, effective_version, epoch)
         if any(
             PurePosixPath(item["path"]).is_absolute()
             or "\\" in item["path"]
@@ -334,7 +354,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "schema_version": 1,
             "status": "passed",
             "mode": "check-only" if args.check_only else "built",
-            "version": args.version,
+            "version": effective_version,
             "file_count": len(files),
             "payload_bytes": sum(item["size"] for item in manifest["files"]),
         }

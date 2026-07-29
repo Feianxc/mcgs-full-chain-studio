@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -9,16 +10,40 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROTOCOL_RESOURCES_ROOT = PROJECT_ROOT / "resources" / "protocol"
+RELEASE_MANIFEST_ERROR = "release-manifest.json must be a regular non-symlink file"
+RELEASE_RESOURCES_OVERRIDE_ERROR = (
+    "release builds must use packaged protocol resources"
+)
+
+
+def is_release_tree(project_root: Path) -> bool:
+    """Return whether this is a modern release, rejecting ambiguous manifests."""
+
+    manifest_path = project_root / "release-manifest.json"
+    try:
+        metadata = manifest_path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        raise RuntimeError(RELEASE_MANIFEST_ERROR) from None
+    if not stat.S_ISREG(metadata.st_mode):
+        raise RuntimeError(RELEASE_MANIFEST_ERROR)
+    return True
 
 
 def resolve_protocol_resources_root() -> Path:
     """Return the versioned protocol resources shipped with this project.
 
-    ``PROTOCOL_STUDIO_RESOURCES_ROOT`` is intentionally optional.  It supports
-    read-only packaged deployments without re-introducing a dependency on a
-    neighbouring development repository.
+    ``PROTOCOL_STUDIO_RESOURCES_ROOT`` remains available to development trees.
+    Manifest-bearing releases reject it and always use their packaged resource
+    tree so runtime configuration cannot redirect generation provenance.
     """
 
+    if (
+        is_release_tree(PROJECT_ROOT)
+        and "PROTOCOL_STUDIO_RESOURCES_ROOT" in os.environ
+    ):
+        raise RuntimeError(RELEASE_RESOURCES_OVERRIDE_ERROR)
     configured = os.environ.get("PROTOCOL_STUDIO_RESOURCES_ROOT", "").strip()
     root = Path(configured).expanduser() if configured else DEFAULT_PROTOCOL_RESOURCES_ROOT
     return root.resolve()

@@ -2,6 +2,8 @@
 Description=MCGS Full-Chain Studio
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60s
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -9,14 +11,18 @@ User=protocol-studio
 Group=protocol-studio
 WorkingDirectory=/srv/apps/protocol-studio/current
 EnvironmentFile=/etc/protocol-studio/protocol-studio.env
-Environment=PYTHONDONTWRITEBYTECODE=1
-Environment=PYTHONUNBUFFERED=1
-ExecStart=/srv/apps/protocol-studio/current/.venv/bin/python -m uvicorn protocol_studio.app:app --host 127.0.0.1 --port 18771 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Environment=
+Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+UnsetEnvironment=BASHOPTS BASH_ENV CDPATH ENV GCONV_PATH GLIBC_TUNABLES GLOBIGNORE LD_ASSUME_KERNEL LD_AUDIT LD_BIND_NOT LD_BIND_NOW LD_DEBUG LD_DEBUG_OUTPUT LD_DYNAMIC_WEAK LD_HWCAP_MASK LD_LIBRARY_PATH LD_ORIGIN_PATH LD_POINTER_GUARD LD_PREFER_MAP_32BIT_EXEC LD_PRELOAD LD_PROFILE LD_PROFILE_OUTPUT LD_SHOW_AUXV LD_TRACE_LOADED_OBJECTS LD_TRACE_PRELINKING LD_USE_LOAD_BIAS LD_VERBOSE LD_WARN LOCPATH OPENSSL_CONF OPENSSL_CONF_INCLUDE OPENSSL_ENGINES OPENSSL_MODULES PATH PYTHONHOME PYTHONINSPECT PYTHONPATH PYTHONSTARTUP SHELLOPTS _UVICORN_COMPLETE FORWARDED_ALLOW_IPS UVICORN_ACCESS_LOG UVICORN_APP UVICORN_APP_DIR UVICORN_BACKLOG UVICORN_DATE_HEADER UVICORN_ENV_FILE UVICORN_FACTORY UVICORN_FD UVICORN_FORWARDED_ALLOW_IPS UVICORN_H11_MAX_INCOMPLETE_EVENT_SIZE UVICORN_HEADERS UVICORN_HOST UVICORN_HTTP UVICORN_INTERFACE UVICORN_LIFESPAN UVICORN_LIMIT_CONCURRENCY UVICORN_LIMIT_MAX_REQUESTS UVICORN_LOG_CONFIG UVICORN_LOG_LEVEL UVICORN_LOOP UVICORN_PORT UVICORN_PROXY_HEADERS UVICORN_RELOAD UVICORN_RELOAD_DELAY UVICORN_RELOAD_DIRS UVICORN_RELOAD_EXCLUDES UVICORN_RELOAD_INCLUDES UVICORN_ROOT_PATH UVICORN_SERVER_HEADER UVICORN_SSL_CA_CERTS UVICORN_SSL_CERTFILE UVICORN_SSL_CERT_REQS UVICORN_SSL_CIPHERS UVICORN_SSL_KEYFILE UVICORN_SSL_KEYFILE_PASSWORD UVICORN_SSL_VERSION UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN UVICORN_TIMEOUT_KEEP_ALIVE UVICORN_TIMEOUT_WORKER_HEALTHCHECK UVICORN_UDS UVICORN_USE_COLORS UVICORN_VERSION UVICORN_WORKERS UVICORN_WS UVICORN_WS_MAX_QUEUE UVICORN_WS_MAX_SIZE UVICORN_WS_PER_MESSAGE_DEFLATE UVICORN_WS_PING_INTERVAL UVICORN_WS_PING_TIMEOUT WEB_CONCURRENCY
+ExecStartPre=
+ExecStartPre=/usr/bin/python3 -I -B -u /srv/apps/protocol-studio/runtime-guard/runtime_fingerprint.py --verify-current /srv/apps/protocol-studio/current --releases-root /srv/apps/protocol-studio/releases --baseline-directory /srv/apps/protocol-studio/runtime-guard/baselines --require-root-owned-immutable
+ExecStartPre=/srv/apps/protocol-studio/current/.venv/bin/python -I -B -u /srv/apps/protocol-studio/current/deploy/validate_production_env.py --shared-runs /srv/apps/protocol-studio/shared/runs --security-db /srv/apps/protocol-studio/shared/security.sqlite3 --public-origin https://protocol.feian.online --public-host protocol.feian.online
+ExecStart=/srv/apps/protocol-studio/current/.venv/bin/python -I -B -u -m uvicorn protocol_studio.app:app --host 127.0.0.1 --port 18771 --proxy-headers --forwarded-allow-ips 127.0.0.1
 Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=45s
 TimeoutStopSec=30s
-UMask=0027
+UMask=0077
 
 NoNewPrivileges=true
 CapabilityBoundingSet=

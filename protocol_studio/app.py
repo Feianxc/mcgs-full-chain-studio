@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import hmac
 import os
 import re
 import secrets
 import shutil
+import tomllib
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -46,6 +48,36 @@ ASSEMBLY_STATIC_ROOT = ASSEMBLY_ROOT / "static"
 ASSEMBLY_INDEX_PATH = ASSEMBLY_TEMPLATES_ROOT / "index.html"
 SECURITY_SETTINGS = SecuritySettings.from_env(WORKSPACE_ROOT)
 SECURITY_MANAGER = SecurityManager(SECURITY_SETTINGS)
+
+RELEASE_MANIFEST_HEADER = "X-MCGS-Release-Manifest-SHA256"
+
+
+def read_project_version(project_root: Path) -> str:
+    pyproject_path = project_root / "pyproject.toml"
+    try:
+        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RuntimeError("cannot read project version from pyproject.toml") from exc
+    project = payload.get("project")
+    version = project.get("version") if isinstance(project, dict) else None
+    if not isinstance(version, str) or not re.fullmatch(
+        r"[0-9A-Za-z][0-9A-Za-z._+-]{0,63}", version
+    ):
+        raise RuntimeError("pyproject.toml contains an invalid project version")
+    return version
+
+
+def read_release_manifest_sha256(project_root: Path) -> str | None:
+    manifest_path = project_root / "release-manifest.json"
+    if not manifest_path.exists():
+        return None
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise RuntimeError("release-manifest.json must be a regular non-symlink file")
+    return hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+
+
+PROJECT_VERSION = read_project_version(WORKSPACE_ROOT)
+RELEASE_MANIFEST_SHA256 = read_release_manifest_sha256(WORKSPACE_ROOT)
 
 
 def resolve_runs_root() -> Path:
@@ -279,7 +311,7 @@ class ChangePasswordRequest(BaseModel):
 
 app = FastAPI(
     title="MCGS Full Chain Studio",
-    version="1.0.0",
+    version=PROJECT_VERSION,
     docs_url=None if SECURITY_SETTINGS.enabled else "/docs",
     redoc_url=None if SECURITY_SETTINGS.enabled else "/redoc",
 )
@@ -380,8 +412,7 @@ async def security_boundary(request: Request, call_next: Any) -> Any:
             return add_security_headers(
                 auth_error(401, "auth_required", "登录状态已失效，请重新登录")
             )
-        login_url = request.url_for("login_page").include_query_params(reason="session_expired")
-        return add_security_headers(RedirectResponse(str(login_url), status_code=303))
+        return add_security_headers(RedirectResponse(url="/login", status_code=303))
 
     if (
         session is not None
@@ -3577,8 +3608,9 @@ def login_page(request: Request) -> HTMLResponse:
     elif request.query_params.get("password") == "changed":
         notice = "密码已更新，请使用新密码登录"
     response = templates.TemplateResponse(
-        "login.html",
-        {
+        request=request,
+        name="login.html",
+        context={
             "request": request,
             "asset_version": template_asset_version(),
             "login_csrf": login_csrf,
@@ -3699,8 +3731,9 @@ def change_password(payload: ChangePasswordRequest, request: Request) -> JSONRes
 def assembly_index(request: Request) -> HTMLResponse:
     session = request_session(request)
     response = assembly_templates.TemplateResponse(
-        "index.html",
-        {
+        request=request,
+        name="index.html",
+        context={
             "request": request,
             "asset_version": template_asset_version(),
             "auth_enabled": SECURITY_SETTINGS.enabled,
@@ -3723,8 +3756,9 @@ def protocol_index_redirect() -> RedirectResponse:
 def protocol_index(request: Request) -> HTMLResponse:
     session = request_session(request)
     response = templates.TemplateResponse(
-        "index.html",
-        {
+        request=request,
+        name="index.html",
+        context={
             "request": request,
             "asset_version": template_asset_version(),
             "auth_enabled": SECURITY_SETTINGS.enabled,
@@ -3739,8 +3773,16 @@ def protocol_index(request: Request) -> HTMLResponse:
 
 
 @app.get("/api/health")
-def health() -> dict[str, Any]:
-    return {"status": "ok", "time": datetime.now().isoformat(timespec="seconds")}
+def health(response: Response) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    if RELEASE_MANIFEST_SHA256 is not None:
+        response.headers[RELEASE_MANIFEST_HEADER] = RELEASE_MANIFEST_SHA256
+    return {
+        "status": "ok",
+        "time": datetime.now().isoformat(timespec="seconds"),
+        "version": PROJECT_VERSION,
+        "release_manifest_sha256": RELEASE_MANIFEST_SHA256,
+    }
 
 
 @app.get("/api/bootstrap")

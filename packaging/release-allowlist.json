@@ -2,6 +2,7 @@
   "schema_version": 1,
   "project": "mcgs-full-chain-studio",
   "files": [
+    ".dockerignore",
     ".env.example",
     ".gitattributes",
     ".gitignore",
@@ -18,6 +19,7 @@
     "TRADEMARKS.md",
     "pyproject.toml",
     "requirements.dev.txt",
+    "requirements.production.lock.txt",
     "requirements.production.txt",
     "run_server.py"
   ],
