@@ -1494,42 +1494,32 @@ DUPLICATE=second
 
         development_resources = root / "development-protocol-resources"
         development_resources.mkdir()
-        development_override = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                (
-                    "import json; "
-                    "from mvp_generator.library import PROTOCOL_RESOURCES_ROOT; "
-                    "print(json.dumps({'resolved': str(PROTOCOL_RESOURCES_ROOT)}))"
-                ),
-            ],
-            cwd=REPO_ROOT,
-            env={
-                **minimal_child_environment(),
-                "PROTOCOL_STUDIO_RESOURCES_ROOT": development_resources.as_posix(),
-            },
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        if development_override.returncode != 0:
-            raise AssertionError(
-                "development resources override failed outside the production validator: "
-                f"exit={development_override.returncode} "
-                f"stdout={development_override.stdout!r} "
-                f"stderr={development_override.stderr!r}"
+        release_override_error = "release builds must use packaged protocol resources"
+        current_release_root_override_check_executed = (
+            REPO_ROOT / "release-manifest.json"
+        ).is_file()
+        if current_release_root_override_check_executed:
+            current_root_result, current_root_report = run_library_overlay(
+                REPO_ROOT,
+                development_resources.as_posix(),
             )
-        development_report = json.loads(development_override.stdout)
-        if (
-            not isinstance(development_report, dict)
-            or not isinstance(development_report.get("resolved"), str)
-            or Path(development_report["resolved"]) != development_resources.resolve()
-        ):
-            raise AssertionError(
-                f"development resources override contract failed: {development_report}"
-            )
+            if (
+                current_root_result.returncode != 17
+                or current_root_report["status"] != "failed"
+                or current_root_report["resources_root"] is not None
+                or current_root_report["error_type"] != "RuntimeError"
+                or current_root_report["error"] != release_override_error
+            ):
+                raise AssertionError(
+                    "manifest-bearing current tree accepted a resources override: "
+                    f"{current_root_report}"
+                )
+            if development_resources.as_posix() in json.dumps(
+                current_root_report, ensure_ascii=False
+            ):
+                raise AssertionError(
+                    "manifest-bearing current tree leaked the rejected resources path"
+                )
 
         release_overlay = root / "release-overlay"
         shutil.copytree(
@@ -1575,7 +1565,6 @@ DUPLICATE=second
                 f"{overlay_positive_report}"
             )
 
-        release_override_error = "release builds must use packaged protocol resources"
         runtime_override_cases = {
             "empty": "",
             "packaged-path": packaged_overlay_resources.as_posix(),
@@ -1733,6 +1722,9 @@ DUPLICATE=second
             ),
             "production_resources_symlink_fixture_created": symlink_fixture_created,
             "development_resources_override_preserved": True,
+            "current_release_root_override_check_executed": (
+                current_release_root_override_check_executed
+            ),
             "modern_release_overlay_default_resources_passed": True,
             "modern_release_overlay_override_cases_rejected": len(
                 runtime_override_cases
