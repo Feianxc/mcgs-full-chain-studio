@@ -4,6 +4,16 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-31
+
+### Changed
+
+- Replace the legacy protocol-studio login presentation with a dedicated MCGS full-chain entry experience. The page now explains the real path from project parameters and cabinet wiring through program assembly to protocol, import-table and alarm-script delivery, while preserving the existing account, CSRF, lockout and session behavior.
+
+### Verification boundary
+
+- Authentication integration, security compatibility, repository validation, the complete 24-test local suite and real-browser desktop interaction checks passed. Responsive CSS includes the mobile layout and reduced-motion treatment; production acceptance remains a separate post-cutover gate.
+
 ## [0.1.2] - 2026-07-29
 
 ### Fixed
@@ -86,7 +96,8 @@ All notable changes will be documented in this file. The format follows [Keep a 
 
 - `v0.1.0` is published as a prerelease with known production-safety defects. `v0.1.1` is retained for audit only because its explicit transaction-compensation path can emit contradictory final safety verdicts. Do not use either version to deploy, roll back or recover a host; use the reviewed `v0.1.2` contract instead.
 
-[Unreleased]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Feianxc/mcgs-full-chain-studio/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Feianxc/mcgs-full-chain-studio/releases/tag/v0.1.0

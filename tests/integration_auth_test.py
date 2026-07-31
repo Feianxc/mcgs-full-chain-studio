@@ -229,7 +229,12 @@ def main() -> int:
             assert hostile_origin.headers.get("location") == "/login"
             assert "evil.invalid" not in hostile_origin.headers.get("location", "")
 
-            assert client.get("/login").status_code == 200
+            login_page = client.get("/login")
+            assert login_page.status_code == 200
+            assert "MCGS 全链条辅助创造系统" in login_page.text
+            assert "把项目信息，变成" in login_page.text
+            assert "进入全链条工作台" in login_page.text
+            assert "动环协议制表台" not in login_page.text
             expired_notice = client.get("/login?reason=session_expired")
             assert expired_notice.status_code == 200
             assert "请登录后继续使用" in expired_notice.text
@@ -240,6 +245,8 @@ def main() -> int:
                 "/assembly-static/app.js",
                 "/assembly-static/styles.css",
                 "/static/app.js",
+                "/static/login.css",
+                "/static/login.js",
             ):
                 asset = client.get(asset_path)
                 assert asset.status_code == 200, (asset_path, asset.status_code)

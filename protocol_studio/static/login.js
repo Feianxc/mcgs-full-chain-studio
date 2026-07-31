@@ -58,6 +58,6 @@ form.addEventListener("submit", async (event) => {
     passwordInput.select();
   } finally {
     submitButton.disabled = false;
-    submitButton.querySelector("span:first-child").textContent = "进入制表台";
+    submitButton.querySelector("span:first-child").textContent = "进入全链条工作台";
   }
 });

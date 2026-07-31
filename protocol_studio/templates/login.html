@@ -4,74 +4,92 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
-    <title>安全登录 · 动环协议制表台</title>
+    <meta
+      name="description"
+      content="MCGS 全链条辅助创造系统统一登录入口"
+    >
+    <title>登录 · MCGS 全链条辅助创造系统</title>
     <link rel="stylesheet" href="/static/login.css?v={{ asset_version }}">
     <link rel="icon" href="/static/favicon.svg?v={{ asset_version }}" type="image/svg+xml">
   </head>
   <body class="login-body">
-    <main class="auth-shell">
-      <section class="auth-context" aria-labelledby="productTitle">
-        <header class="auth-brand">
-          <span class="auth-brand__mark" aria-hidden="true">MCGS</span>
-          <span class="auth-brand__name">协议工程制表台</span>
+    <main class="login-shell">
+      <section class="creation-story" aria-labelledby="productTitle">
+        <header class="product-brand">
+          <span class="product-mark" aria-hidden="true"><i></i><i></i></span>
+          <span class="product-brand__copy">
+            <strong>MCGS 全链条辅助创造系统</strong>
+            <small>项目程序装配工作台</small>
+          </span>
         </header>
 
-        <div class="auth-context__copy">
-          <p class="auth-kicker">BUSWAY PROTOCOL STUDIO</p>
-          <h1 id="productTitle">动环协议制表台</h1>
-          <p>项目参数、设备拓扑与生成记录仅对已授权账号开放。</p>
+        <div class="creation-intro">
+          <p class="creation-kicker">从项目参数到程序交付</p>
+          <h1 id="productTitle">把项目信息，变成<br>可执行的 MCGS 制作流程</h1>
+          <p>配置箱型、数量和接线关系，系统自动整理变量、策略、窗口与动环交付内容。</p>
         </div>
 
-        <div class="signal-map" aria-label="A 路与 B 路通过安全节点汇入协议交付">
-          <div class="signal-route signal-route--a">
-            <span class="signal-route__tag">A 路</span>
-            <span class="signal-route__line" aria-hidden="true"></span>
-            <span class="signal-route__device">始端箱</span>
-            <span class="signal-route__device">插接箱</span>
-          </div>
-          <div class="signal-lock" aria-hidden="true">
-            <svg viewBox="0 0 32 32" role="img">
-              <path d="M10 14V10a6 6 0 0 1 12 0v4"></path>
-              <rect x="7" y="14" width="18" height="14" rx="3"></rect>
-              <path d="M16 19v4"></path>
-            </svg>
-            <span>安全会话</span>
-          </div>
-          <div class="signal-route signal-route--b">
-            <span class="signal-route__tag">B 路</span>
-            <span class="signal-route__line" aria-hidden="true"></span>
-            <span class="signal-route__device">始端箱</span>
-            <span class="signal-route__device">插接箱</span>
-          </div>
-          <div class="signal-output" aria-hidden="true">
-            <span>协议表</span>
-            <span>报警代码</span>
-            <span>MCGS CSV</span>
-          </div>
+        <div class="creation-chain" aria-label="MCGS 项目从参数配置到文件交付的四步流程">
+          <span class="chain-rail chain-rail--a" aria-hidden="true"></span>
+          <span class="chain-rail chain-rail--b" aria-hidden="true"></span>
+
+          <article class="chain-step">
+            <span class="chain-step__node" aria-hidden="true">01</span>
+            <div>
+              <strong>项目参数</strong>
+              <small>屏幕范围 · 箱型 · 数量</small>
+            </div>
+          </article>
+          <article class="chain-step">
+            <span class="chain-step__node" aria-hidden="true">02</span>
+            <div>
+              <strong>接线关系</strong>
+              <small>输出回路 ↔ 机柜</small>
+            </div>
+          </article>
+          <article class="chain-step">
+            <span class="chain-step__node" aria-hidden="true">03</span>
+            <div>
+              <strong>程序装配</strong>
+              <small>变量 · 策略 · 窗口</small>
+            </div>
+          </article>
+          <article class="chain-step">
+            <span class="chain-step__node" aria-hidden="true">04</span>
+            <div>
+              <strong>交付生成</strong>
+              <small>协议表 · 导入表 · 报警脚本</small>
+            </div>
+          </article>
         </div>
 
-        <footer class="auth-context__foot">
-          <span><i class="status-dot" aria-hidden="true"></i>账号验证</span>
-          <span>加密会话</span>
-          <span>操作隔离</span>
+        <footer class="creation-outcomes" aria-label="系统输出能力">
+          <span>只显示需要人工修改的内容</span>
+          <span>代码可直接复制</span>
+          <span>项目结果统一留存</span>
         </footer>
       </section>
 
-      <section class="auth-entry" aria-labelledby="loginTitle">
-        <div class="auth-card">
-          <div class="auth-card__head">
-            <span class="auth-card__index" aria-hidden="true">01 / ACCESS</span>
-            <h2 id="loginTitle">登录工作台</h2>
-            <p>使用分配给你的账号继续配置和生成文件。</p>
+      <section class="login-entry" aria-labelledby="loginTitle">
+        <div class="login-card">
+          <div class="login-card__mobile-brand" aria-hidden="true">
+            <span class="product-mark"><i></i><i></i></span>
+            <strong>MCGS 全链条辅助创造系统</strong>
+          </div>
+
+          <div class="login-card__head">
+            <span class="login-eyebrow">账号验证</span>
+            <h2 id="loginTitle">继续你的项目</h2>
+            <p>登录后进入项目配置和程序装配工作台。</p>
           </div>
 
           {% if notice %}
-          <div class="auth-notice" id="loginNotice" role="status">{{ notice }}</div>
+          <div class="login-notice" id="loginNotice" role="status">{{ notice }}</div>
           {% endif %}
 
-          <form class="auth-form" id="loginForm" novalidate>
+          <form class="login-form" id="loginForm" novalidate>
             <input id="loginCsrf" type="hidden" value="{{ login_csrf }}">
-            <label class="auth-field" for="username">
+            <label class="login-field" for="username">
               <span>账号</span>
               <input
                 id="username"
@@ -85,7 +103,7 @@
                 required
               >
             </label>
-            <label class="auth-field" for="password">
+            <label class="login-field" for="password">
               <span>密码</span>
               <span class="password-control">
                 <input
@@ -101,16 +119,16 @@
               </span>
             </label>
 
-            <div class="auth-feedback" id="loginFeedback" role="alert" aria-live="polite"></div>
-            <button class="auth-submit" id="loginSubmit" type="submit">
-              <span>进入制表台</span>
-              <span class="auth-submit__arrow" aria-hidden="true">→</span>
+            <div class="login-feedback" id="loginFeedback" role="alert" aria-live="polite"></div>
+            <button class="login-submit" id="loginSubmit" type="submit">
+              <span>进入全链条工作台</span>
+              <span class="login-submit__arrow" aria-hidden="true">→</span>
             </button>
           </form>
 
-          <div class="auth-assurance">
-            <span class="assurance-shield" aria-hidden="true"></span>
-            <p><strong>受保护的内部业务系统</strong><br>连续失败将触发临时锁定；首次登录后需要更新密码。</p>
+          <div class="login-assurance">
+            <span class="assurance-state" aria-hidden="true"><i></i></span>
+            <p><strong>企业内部工作台</strong><br>连续登录失败将触发临时锁定。</p>
           </div>
         </div>
       </section>
